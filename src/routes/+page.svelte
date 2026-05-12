@@ -1,24 +1,40 @@
 <script lang="ts">
-	import { mockAlbums, mockLastScrapedAt } from '$lib/mockData';
+	import { enhance } from '$app/forms';
 	import { formatLastScraped, genreCounts } from '$lib/genres';
+	import type { ActionData, PageData } from './$types';
+
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	let genreFilter = $state('');
 	let selectedGenre = $state<string | null>(null);
+	let importing = $state(false);
+	let fileInput = $state<HTMLInputElement | null>(null);
+	let importForm = $state<HTMLFormElement | null>(null);
 
-	const allGenres = $derived(genreCounts(mockAlbums));
+	const allGenres = $derived(genreCounts(data.albums));
 
 	const visibleGenres = $derived(
 		allGenres.filter((g) => g.name.toLowerCase().includes(genreFilter.trim().toLowerCase()))
 	);
 
 	const visibleAlbums = $derived(
-		(selectedGenre ? mockAlbums.filter((a) => a.genres.includes(selectedGenre!)) : mockAlbums)
+		(selectedGenre ? data.albums.filter((a) => a.genres.includes(selectedGenre!)) : data.albums)
 			.slice()
 			.sort((a, b) => a.artist.localeCompare(b.artist))
 	);
 
 	function selectGenre(name: string) {
 		selectedGenre = selectedGenre === name ? null : name;
+	}
+
+	function pickFiles() {
+		fileInput?.click();
+	}
+
+	function onFilesChosen() {
+		if (fileInput && fileInput.files && fileInput.files.length > 0) {
+			importForm?.requestSubmit();
+		}
 	}
 </script>
 
@@ -39,22 +55,101 @@
 			</div>
 
 			<div class="ml-auto flex items-center gap-3">
-				<span class="hidden text-xs text-base-content/60 md:inline">
-					last scraped: <span class="font-medium text-base-content/80"
-						>{formatLastScraped(mockLastScrapedAt)}</span
+				{#if data.source === 'mock'}
+					<span
+						class="badge hidden badge-sm badge-warning md:inline-flex"
+						title="No data/wishlist.json yet — showing mock data. Import saved RYM wishlist HTML to populate."
 					>
+						mock data
+					</span>
+				{/if}
+				<span class="hidden text-xs text-base-content/60 md:inline">
+					last updated:
+					<span class="font-medium text-base-content/80">
+						{formatLastScraped(data.lastScrapedAt)}
+					</span>
 				</span>
-				<button
-					type="button"
-					class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md sm:btn-md"
-					disabled
-					title="Scraping not implemented yet"
+
+				<form
+					bind:this={importForm}
+					method="POST"
+					action="?/import"
+					enctype="multipart/form-data"
+					class="contents"
+					use:enhance={() => {
+						importing = true;
+						return async ({ update }) => {
+							await update({ reset: true });
+							if (fileInput) fileInput.value = '';
+							importing = false;
+						};
+					}}
 				>
-					Scrape Wishlist
-				</button>
+					<input
+						bind:this={fileInput}
+						name="files"
+						type="file"
+						accept=".html,.htm,text/html"
+						multiple
+						class="hidden"
+						onchange={onFilesChosen}
+					/>
+					<button
+						type="button"
+						class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md sm:btn-md"
+						onclick={pickFiles}
+						disabled={importing}
+						title="Import saved RYM wishlist HTML pages"
+					>
+						{#if importing}
+							<span class="loading loading-xs loading-spinner"></span>
+							Importing…
+						{:else}
+							Import HTML
+						{/if}
+					</button>
+				</form>
 			</div>
 		</div>
 	</header>
+
+	{#if form}
+		<div class="mx-auto w-full max-w-7xl px-4 pt-3 sm:px-6">
+			{#if form.success}
+				<div
+					role="status"
+					class="alert border-success/30 bg-success/10 py-2 text-sm alert-success shadow-sm"
+				>
+					<span>
+						Imported <strong>{form.added}</strong> new
+						{form.added === 1 ? 'album' : 'albums'} from {form.files}
+						{form.files === 1 ? 'file' : 'files'}
+						<span class="opacity-70">
+							({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped · total {form.total})
+						</span>
+					</span>
+				</div>
+				{#if form.errors && form.errors.length > 0}
+					<ul class="mt-2 list-disc pl-6 text-xs text-base-content/60">
+						{#each form.errors as msg (msg)}
+							<li>{msg}</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if form.error}
+				<div role="alert" class="alert py-2 text-sm alert-error shadow-sm">
+					<span>{form.error}</span>
+				</div>
+				{#if form.errors && form.errors.length > 0}
+					<ul class="mt-2 list-disc pl-6 text-xs text-base-content/60">
+						{#each form.errors as msg (msg)}
+							<li>{msg}</li>
+						{/each}
+					</ul>
+				{/if}
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Main two-pane layout -->
 	<main class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row">
@@ -190,6 +285,6 @@
 	</main>
 
 	<footer class="border-t border-base-300/60 py-3 text-center text-xs text-base-content/40">
-		local-only · mock data · scraper coming soon
+		local-only · JSON-backed · import saved RYM HTML to populate
 	</footer>
 </div>
