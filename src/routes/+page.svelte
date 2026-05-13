@@ -70,6 +70,14 @@
 					</span>
 				</span>
 
+				<a
+					href="/bookmarklet"
+					class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
+					title="Set up the one-click browser bookmarklet"
+				>
+					Bookmarklet
+				</a>
+
 				<form
 					bind:this={importForm}
 					method="POST"
