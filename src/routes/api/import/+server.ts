@@ -1,11 +1,6 @@
 import { json } from '@sveltejs/kit';
+import { processImport } from '$lib/server/import';
 import type { ParsedAlbum } from '$lib/server/parseWishlistHtml';
-import {
-	mergeAlbums,
-	readWishlistFile,
-	writeWishlistFile,
-	type WishlistFile
-} from '$lib/server/wishlistStore';
 import type { RequestHandler } from './$types';
 
 const CORS_HEADERS: Record<string, string> = {
@@ -36,20 +31,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ ok: false, error: validation.error }, { status: 400, headers: CORS_HEADERS });
 	}
 
-	const existing = (await readWishlistFile())?.albums ?? [];
-	const now = new Date().toISOString();
-	const { albums, result } = mergeAlbums(existing, validation.albums, now);
-
-	const next: WishlistFile = { lastScrapedAt: now, source: 'rym', albums };
-	await writeWishlistFile(next);
+	const outcome = await processImport(validation.albums);
 
 	return json(
 		{
 			ok: true,
 			parsed: validation.albums.length,
-			added: result.added,
-			duplicates: result.duplicates,
-			total: result.total,
+			added: outcome.added,
+			updated: outcome.updated,
+			unchanged: outcome.unchanged,
+			duplicates: outcome.duplicates,
+			total: outcome.total,
+			sync: outcome.sync,
 			sourceUrl: validation.sourceUrl
 		},
 		{ status: 200, headers: CORS_HEADERS }

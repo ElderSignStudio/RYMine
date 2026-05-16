@@ -55,7 +55,14 @@
 		<!-- Step 2: usage -->
 		<section class="card border border-base-300/70 bg-base-200/40 p-5 shadow-sm">
 			<h2 class="mb-2 text-base font-semibold">2. Use it on your RYM wishlist</h2>
-			<ol class="ml-5 list-decimal space-y-2 text-sm text-base-content/80">
+			<p class="mb-3 text-sm text-base-content/70">
+				Two flavors of workflow — both use the same bookmarklet:
+			</p>
+
+			<h3 class="mb-1 text-sm font-semibold tracking-tight">
+				Casual add (merge-only, the default)
+			</h3>
+			<ol class="mb-4 ml-5 list-decimal space-y-1.5 text-sm text-base-content/80">
 				<li>
 					Make sure this local app is running (<code class="rounded bg-base-300/60 px-1.5 py-0.5"
 						>npm run dev</code
@@ -67,18 +74,32 @@
 						>https://rateyourmusic.com/collection/&lt;you&gt;/wishlist</code
 					>).
 				</li>
-				<li>Click the <em>RYMScraper Import</em> bookmarklet in your bookmarks bar.</li>
+				<li>Click the <em>RYMScraper Import</em> bookmarklet on the page(s) you care about.</li>
 				<li>
-					A small alert tells you how many albums were imported / how many were duplicates from
-					previous runs.
+					New albums show up locally. Albums you removed on RYM <strong>stay</strong> until you do a full
+					sync.
+				</li>
+			</ol>
+
+			<h3 class="mb-1 text-sm font-semibold tracking-tight">
+				Full sync (reflects removals — do this occasionally)
+			</h3>
+			<ol class="ml-5 list-decimal space-y-1.5 text-sm text-base-content/80">
+				<li>
+					In <a href="/" class="link link-primary">this app</a>, click
+					<em>Start Full Sync</em>. It takes a snapshot of your current local wishlist.
 				</li>
 				<li>
-					Click "Next" on the RYM wishlist, click the bookmarklet again, repeat until you've covered
-					every page.
+					In your RYM tab, click the bookmarklet on <strong>every</strong> page of your wishlist (page
+					1 → click → Next → click → … through the last page). The alert will tell you how many pages
+					and albums have been seen in this sync.
 				</li>
 				<li>
-					Come back to <a href="/" class="link link-primary">this app</a>
-					to browse the merged data.
+					Back in this app, click <em>Finish Full Sync</em>. You'll see a preview showing how many
+					albums will be added, kept, and <strong>removed</strong>. Confirm to commit.
+				</li>
+				<li>
+					If you miss a page or get interrupted, click <em>Cancel Sync</em> — nothing is removed.
 				</li>
 			</ol>
 		</section>

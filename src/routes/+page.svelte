@@ -10,6 +10,7 @@
 	let importing = $state(false);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let importForm = $state<HTMLFormElement | null>(null);
+	let finishModalOpen = $state(false);
 
 	const allGenres = $derived(genreCounts(data.albums));
 
@@ -23,6 +24,14 @@
 			.sort((a, b) => a.artist.localeCompare(b.artist))
 	);
 
+	const sync = $derived(data.syncSession);
+	const previewSeverity = $derived.by<'none' | 'mild' | 'strong'>(() => {
+		const p = sync?.preview;
+		if (!p || p.removed === 0) return 'none';
+		if (p.removed > 5 && p.removalPct >= 25) return 'strong';
+		return 'mild';
+	});
+
 	function selectGenre(name: string) {
 		selectedGenre = selectedGenre === name ? null : name;
 	}
@@ -34,6 +43,16 @@
 	function onFilesChosen() {
 		if (fileInput && fileInput.files && fileInput.files.length > 0) {
 			importForm?.requestSubmit();
+		}
+	}
+
+	function confirmCancelSync(e: SubmitEvent) {
+		if (
+			!confirm(
+				'Cancel this full sync? No albums will be removed; you just lose the in-progress session.'
+			)
+		) {
+			e.preventDefault();
 		}
 	}
 </script>
@@ -69,6 +88,18 @@
 						{formatLastScraped(data.lastScrapedAt)}
 					</span>
 				</span>
+
+				{#if !sync}
+					<form method="POST" action="?/startSync" class="contents" use:enhance>
+						<button
+							type="submit"
+							class="btn hidden btn-ghost transition btn-outline btn-sm hover:-translate-y-0.5 sm:inline-flex"
+							title="Take a snapshot now and remove anything not seen by the time you finish."
+						>
+							Start Full Sync
+						</button>
+					</form>
+				{/if}
 
 				<a
 					href="/bookmarklet"
@@ -121,6 +152,45 @@
 		</div>
 	</header>
 
+	<!-- Active full-sync banner -->
+	{#if sync}
+		<div class="mx-auto w-full max-w-7xl px-4 pt-3 sm:px-6">
+			<div
+				class="alert flex flex-wrap items-center gap-3 border-info/30 bg-info/10 py-3 text-sm shadow-sm"
+				role="status"
+			>
+				<span class="text-base" aria-hidden="true">🔄</span>
+				<span class="flex-1 leading-tight">
+					<strong>Full sync in progress</strong>
+					<span class="text-base-content/70">
+						· {sync.preview.pageCount}
+						{sync.preview.pageCount === 1 ? 'page' : 'pages'} imported · {sync.preview.seenCount}
+						{sync.preview.seenCount === 1 ? 'album' : 'albums'} seen · snapshot has {sync.preview
+							.initialCount}
+					</span>
+				</span>
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5"
+						onclick={() => (finishModalOpen = true)}
+					>
+						Finish Full Sync
+					</button>
+					<form
+						method="POST"
+						action="?/cancelSync"
+						class="contents"
+						onsubmit={confirmCancelSync}
+						use:enhance
+					>
+						<button type="submit" class="btn btn-ghost btn-sm"> Cancel Sync </button>
+					</form>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	{#if form}
 		<div class="mx-auto w-full max-w-7xl px-4 pt-3 sm:px-6">
 			{#if form.success}
@@ -133,7 +203,11 @@
 						{form.added === 1 ? 'album' : 'albums'} from {form.files}
 						{form.files === 1 ? 'file' : 'files'}
 						<span class="opacity-70">
-							({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped · total {form.total})
+							{#if form.syncActive}
+								({form.updated} updated · {form.unchanged} unchanged · total {form.total})
+							{:else}
+								({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped · total {form.total})
+							{/if}
 						</span>
 					</span>
 				</div>
@@ -144,6 +218,37 @@
 						{/each}
 					</ul>
 				{/if}
+			{:else if form.syncStarted}
+				<div
+					role="status"
+					class="alert border-info/30 bg-info/10 py-2 text-sm alert-info shadow-sm"
+				>
+					<span>
+						Full sync started. Snapshot taken: <strong>{form.initialCount}</strong>
+						{form.initialCount === 1 ? 'album' : 'albums'}. Click the bookmarklet on each RYM
+						wishlist page, then come back and finish.
+					</span>
+				</div>
+			{:else if form.syncFinished}
+				<div
+					role="status"
+					class="alert border-success/30 bg-success/10 py-2 text-sm alert-success shadow-sm"
+				>
+					<span>
+						Sync complete · added <strong>{form.added}</strong>, updated {form.updated}, unchanged {form.unchanged},
+						removed <strong>{form.removed}</strong> (total {form.total})
+					</span>
+				</div>
+			{:else if form.syncCancelled}
+				<div
+					role="status"
+					class="alert border-warning/30 bg-warning/10 py-2 text-sm alert-warning shadow-sm"
+				>
+					<span>
+						Sync cancelled. {form.pageCount}
+						{form.pageCount === 1 ? 'page' : 'pages'} discarded · nothing was removed.
+					</span>
+				</div>
 			{:else if form.error}
 				<div role="alert" class="alert py-2 text-sm alert-error shadow-sm">
 					<span>{form.error}</span>
@@ -296,3 +401,118 @@
 		local-only · JSON-backed · import saved RYM HTML to populate
 	</footer>
 </div>
+
+<!-- Finish Full Sync confirmation modal -->
+{#if finishModalOpen && sync}
+	<div
+		class="fixed inset-0 z-30 flex items-center justify-center bg-base-300/70 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Confirm finish full sync"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) finishModalOpen = false;
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') finishModalOpen = false;
+		}}
+		tabindex="-1"
+	>
+		<div class="card mx-4 w-full max-w-md border border-base-300/70 bg-base-100 p-5 shadow-xl">
+			<h2 class="mb-1 text-lg font-semibold tracking-tight">Finish full sync?</h2>
+			<p class="mb-4 text-xs text-base-content/60">
+				Started {formatLastScraped(sync.startedAt)} · {sync.preview.pageCount}
+				{sync.preview.pageCount === 1 ? 'page' : 'pages'} imported · {sync.preview.seenCount} albums seen
+			</p>
+
+			<div class="mb-4 grid grid-cols-2 gap-2 text-sm">
+				<div class="rounded bg-base-200/60 px-3 py-2">
+					<div class="text-xs text-base-content/60">Added</div>
+					<div class="font-semibold">{sync.preview.added}</div>
+				</div>
+				<div class="rounded bg-base-200/60 px-3 py-2">
+					<div class="text-xs text-base-content/60">Updated</div>
+					<div class="font-semibold">{sync.preview.updated}</div>
+				</div>
+				<div class="rounded bg-base-200/60 px-3 py-2">
+					<div class="text-xs text-base-content/60">Unchanged</div>
+					<div class="font-semibold">{sync.preview.unchanged}</div>
+				</div>
+				<div
+					class="rounded px-3 py-2 {previewSeverity === 'strong'
+						? 'border border-error/40 bg-error/15'
+						: previewSeverity === 'mild'
+							? 'bg-warning/15'
+							: 'bg-base-200/60'}"
+				>
+					<div class="text-xs text-base-content/60">Will be removed</div>
+					<div class="font-semibold">
+						{sync.preview.removed}
+						{#if sync.preview.removed > 0}
+							<span class="text-xs font-normal text-base-content/60"
+								>({sync.preview.removalPct}%)</span
+							>
+						{/if}
+					</div>
+				</div>
+			</div>
+
+			{#if previewSeverity === 'strong'}
+				<div
+					role="alert"
+					class="mb-4 alert border-error/40 bg-error/10 py-2 text-xs alert-error shadow-sm"
+				>
+					<span>
+						This is a big deletion ({sync.preview.removalPct}% of your snapshot). Double-check you
+						imported every wishlist page before finishing — you can still <em>Cancel Sync</em> safely.
+					</span>
+				</div>
+			{:else if previewSeverity === 'mild'}
+				<p class="mb-4 text-xs text-base-content/60">
+					{sync.preview.removed}
+					{sync.preview.removed === 1 ? 'album' : 'albums'} from the snapshot were not seen during this
+					sync and will be removed.
+				</p>
+			{:else}
+				<p class="mb-4 text-xs text-base-content/60">
+					No albums will be removed — every snapshot URL was seen.
+				</p>
+			{/if}
+
+			<div class="flex flex-wrap items-center justify-end gap-2">
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					onclick={() => (finishModalOpen = false)}
+				>
+					Back
+				</button>
+				<form
+					method="POST"
+					action="?/finishSync"
+					class="contents"
+					use:enhance={() => {
+						return async ({ update }) => {
+							await update({ reset: true });
+							finishModalOpen = false;
+						};
+					}}
+				>
+					<button
+						type="submit"
+						class="btn shadow-sm transition btn-sm hover:-translate-y-0.5 {previewSeverity ===
+						'strong'
+							? 'btn-error'
+							: 'btn-primary'}"
+					>
+						{#if sync.preview.removed === 0}
+							Finish (no removals)
+						{:else}
+							Confirm · remove {sync.preview.removed}
+							{sync.preview.removed === 1 ? 'album' : 'albums'}
+						{/if}
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+{/if}

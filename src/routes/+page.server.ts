@@ -1,16 +1,28 @@
 import { fail } from '@sveltejs/kit';
+import { processImport } from '$lib/server/import';
 import { parseWishlistHtml } from '$lib/server/parseWishlistHtml';
 import { loadWishlistData } from '$lib/server/wishlist';
+import { readWishlistFile } from '$lib/server/wishlistStore';
 import {
-	mergeAlbums,
-	readWishlistFile,
-	writeWishlistFile,
-	type WishlistFile
-} from '$lib/server/wishlistStore';
+	computePreview,
+	deleteSyncSession,
+	finalizeSyncSession,
+	readSyncSession,
+	startSyncSession,
+	type SyncSession,
+	type SyncPreview
+} from '$lib/server/syncStore';
+import type { WishlistFile } from '$lib/server/wishlistStore';
+import { writeWishlistFile } from '$lib/server/wishlistStore';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-	return loadWishlistData();
+	const wishlist = await loadWishlistData();
+	const session = await readSyncSession();
+	const syncSession: (SyncSession & { preview: SyncPreview }) | null = session
+		? { ...session, preview: computePreview(session, wishlist.albums) }
+		: null;
+	return { ...wishlist, syncSession };
 };
 
 export const actions: Actions = {
@@ -58,25 +70,80 @@ export const actions: Actions = {
 			});
 		}
 
-		const existing = (await readWishlistFile())?.albums ?? [];
-		const now = new Date().toISOString();
-		const { albums, result } = mergeAlbums(existing, incoming, now);
-
-		const next: WishlistFile = {
-			lastScrapedAt: now,
-			source: 'rym',
-			albums
-		};
-		await writeWishlistFile(next);
+		const outcome = await processImport(incoming);
 
 		return {
 			success: true as const,
 			files: files.length,
 			parsed: parsedCount,
-			added: result.added,
-			duplicates: result.duplicates,
-			total: result.total,
+			added: outcome.added,
+			updated: outcome.updated,
+			unchanged: outcome.unchanged,
+			duplicates: outcome.duplicates,
+			total: outcome.total,
+			syncActive: outcome.sync.active,
 			errors
+		};
+	},
+
+	startSync: async () => {
+		const existing = await readSyncSession();
+		if (existing) {
+			return fail(409, { error: 'A sync session is already active.' });
+		}
+		const current = (await readWishlistFile())?.albums ?? [];
+		const session = await startSyncSession(current);
+		return {
+			syncStarted: true as const,
+			syncId: session.syncId,
+			initialCount: current.length
+		};
+	},
+
+	finishSync: async () => {
+		const session = await readSyncSession();
+		if (!session) {
+			return fail(400, { error: 'No active sync session to finish.' });
+		}
+		if (session.pageCount === 0 || session.seenUrls.length === 0) {
+			return fail(400, {
+				error:
+					'Sync has not seen any albums yet. Import at least one wishlist page, or cancel the sync.'
+			});
+		}
+
+		const current = (await readWishlistFile())?.albums ?? [];
+		const preview = computePreview(session, current);
+		const finalAlbums = finalizeSyncSession(session, current);
+
+		const now = new Date().toISOString();
+		const next: WishlistFile = { lastScrapedAt: now, source: 'rym', albums: finalAlbums };
+		await writeWishlistFile(next);
+		await deleteSyncSession();
+
+		return {
+			syncFinished: true as const,
+			added: preview.added,
+			updated: preview.updated,
+			unchanged: preview.unchanged,
+			removed: preview.removed,
+			total: preview.total,
+			pageCount: preview.pageCount,
+			initialCount: preview.initialCount,
+			removalPct: preview.removalPct
+		};
+	},
+
+	cancelSync: async () => {
+		const session = await readSyncSession();
+		if (!session) {
+			return fail(400, { error: 'No active sync session to cancel.' });
+		}
+		await deleteSyncSession();
+		return {
+			syncCancelled: true as const,
+			pageCount: session.pageCount,
+			seenCount: session.seenUrls.length
 		};
 	}
 };
