@@ -35,7 +35,7 @@ found.set(url,{url:url,title:title,artist:artist,year:year,genres:genres});
 });
 var albums=Array.from(found.values());
 if(!albums.length){alert('RYMScraper: no albums detected on this page. Are you on a wishlist?');return;}
-fetch(ENDPOINT,{method:'POST',mode:'cors',headers:{'content-type':'text/plain'},body:JSON.stringify({albums:albums,sourceUrl:location.href})}).then(function(r){return r.json().then(function(b){return{s:r.status,b:b};});}).then(function(o){
+fetch(ENDPOINT,{method:'POST',mode:'cors',headers:{'content-type':'application/json'},body:JSON.stringify({albums:albums,sourceUrl:location.href})}).then(function(r){return r.json().then(function(b){return{s:r.status,b:b};});}).then(function(o){
 if(o.s>=200&&o.s<300&&o.b&&o.b.ok){
 var msg='RYMScraper: imported '+o.b.added+' new, '+o.b.duplicates+' duplicate (total '+o.b.total+').';
 if(o.b.sync&&o.b.sync.active){msg+=' [sync: page '+o.b.sync.pageCount+', '+o.b.sync.totalSeen+' albums seen]';}

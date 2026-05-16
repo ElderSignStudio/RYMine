@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { formatLastScraped, genreCounts } from '$lib/genres';
 	import type { ActionData, PageData } from './$types';
 
@@ -8,6 +9,7 @@
 	let genreFilter = $state('');
 	let selectedGenre = $state<string | null>(null);
 	let importing = $state(false);
+	let refreshing = $state(false);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let importForm = $state<HTMLFormElement | null>(null);
 	let finishModalOpen = $state(false);
@@ -54,6 +56,25 @@
 		) {
 			e.preventDefault();
 		}
+	}
+
+	// The bookmarklet POSTs to /api/import from a different tab, so the local app
+	// doesn't naturally know its sync counts changed. While a sync is active,
+	// poll every 3s so the banner stays roughly live and Finish opens with
+	// fresh numbers.
+	$effect(() => {
+		if (!sync) return;
+		const id = setInterval(() => invalidateAll(), 3000);
+		return () => clearInterval(id);
+	});
+
+	async function openFinishModal() {
+		// Belt-and-suspenders: ensure the preview reflects the current session
+		// state before we render it.
+		refreshing = true;
+		await invalidateAll();
+		refreshing = false;
+		finishModalOpen = true;
 	}
 </script>
 
@@ -172,8 +193,22 @@
 				<div class="flex items-center gap-2">
 					<button
 						type="button"
+						class="btn btn-ghost btn-xs"
+						onclick={async () => {
+							refreshing = true;
+							await invalidateAll();
+							refreshing = false;
+						}}
+						title="Refresh sync progress"
+						disabled={refreshing}
+					>
+						{refreshing ? '…' : '↻'}
+					</button>
+					<button
+						type="button"
 						class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5"
-						onclick={() => (finishModalOpen = true)}
+						onclick={openFinishModal}
+						disabled={refreshing}
 					>
 						Finish Full Sync
 					</button>
