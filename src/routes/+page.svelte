@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { formatWishlistDate } from '$lib/dates';
 	import { formatLastScraped, genreCounts } from '$lib/genres';
 	import type { ActionData, PageData } from './$types';
 
@@ -8,6 +9,9 @@
 
 	let genreFilter = $state('');
 	let selectedGenre = $state<string | null>(null);
+	let genreSort = $state<'name' | 'count'>('name');
+	let albumSort = $state<'artist' | 'year' | 'added'>('artist');
+	let albumDir = $state<'asc' | 'desc'>('asc');
 	let importing = $state(false);
 	let refreshing = $state(false);
 	let fileInput = $state<HTMLInputElement | null>(null);
@@ -17,14 +21,56 @@
 	const allGenres = $derived(genreCounts(data.albums));
 
 	const visibleGenres = $derived(
-		allGenres.filter((g) => g.name.toLowerCase().includes(genreFilter.trim().toLowerCase()))
+		[...allGenres]
+			.sort((a, b) => {
+				if (genreSort === 'count') return b.count - a.count || a.name.localeCompare(b.name);
+				return a.name.localeCompare(b.name);
+			})
+			.filter((g) => g.name.toLowerCase().includes(genreFilter.trim().toLowerCase()))
 	);
 
-	const visibleAlbums = $derived(
-		(selectedGenre ? data.albums.filter((a) => a.genres.includes(selectedGenre!)) : data.albums)
-			.slice()
-			.sort((a, b) => a.artist.localeCompare(b.artist))
-	);
+	const visibleAlbums = $derived.by(() => {
+		const base = selectedGenre
+			? data.albums.filter((a) => a.genres.includes(selectedGenre!))
+			: data.albums;
+		const sign = albumDir === 'asc' ? 1 : -1;
+		const sorted = [...base].sort((a, b) => {
+			if (albumSort === 'artist') {
+				return sign * a.artist.localeCompare(b.artist);
+			}
+			if (albumSort === 'year') {
+				const ay = a.year;
+				const by = b.year;
+				if (ay === undefined && by === undefined) return 0;
+				if (ay === undefined) return 1; // missing always last
+				if (by === undefined) return -1;
+				return sign * (ay - by);
+			}
+			// 'added'
+			const ad = a.dateAdded ?? '';
+			const bd = b.dateAdded ?? '';
+			if (!ad && !bd) return 0;
+			if (!ad) return 1; // missing always last
+			if (!bd) return -1;
+			return sign * ad.localeCompare(bd);
+		});
+		return sorted;
+	});
+
+	function setAlbumSort(mode: 'artist' | 'year' | 'added') {
+		if (albumSort === mode) {
+			albumDir = albumDir === 'asc' ? 'desc' : 'asc';
+		} else {
+			albumSort = mode;
+			// Sensible default direction per mode.
+			albumDir = mode === 'artist' ? 'asc' : 'desc';
+		}
+	}
+
+	function sortArrow(mode: 'artist' | 'year' | 'added'): string {
+		if (albumSort !== mode) return '';
+		return albumDir === 'asc' ? ' ↑' : ' ↓';
+	}
 
 	const sync = $derived(data.syncSession);
 	const previewSeverity = $derived.by<'none' | 'mild' | 'strong'>(() => {
@@ -239,9 +285,13 @@
 						{form.files === 1 ? 'file' : 'files'}
 						<span class="opacity-70">
 							{#if form.syncActive}
-								({form.updated} updated · {form.unchanged} unchanged · total {form.total})
+								({form.updated} updated · {form.unchanged} unchanged{#if form.datesRefreshed}
+									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}
+								· total {form.total})
 							{:else}
-								({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped · total {form.total})
+								({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped{#if form.datesRefreshed}
+									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}
+								· total {form.total})
 							{/if}
 						</span>
 					</span>
@@ -312,6 +362,25 @@
 					</h2>
 					<span class="text-xs text-base-content/50">{allGenres.length} total</span>
 				</div>
+				<div class="mb-2 flex items-center gap-1 text-xs">
+					<span class="text-base-content/50">sort:</span>
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs {genreSort === 'name' ? 'btn-active' : ''}"
+						onclick={() => (genreSort = 'name')}
+						title="Alphabetical"
+					>
+						A–Z
+					</button>
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs {genreSort === 'count' ? 'btn-active' : ''}"
+						onclick={() => (genreSort = 'count')}
+						title="By album count, highest first"
+					>
+						count
+					</button>
+				</div>
 				<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -364,9 +433,7 @@
 
 		<!-- Right: albums -->
 		<section class="card flex-1 overflow-hidden border border-base-300/70 bg-base-200/40 shadow-sm">
-			<div
-				class="flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300/70 p-4"
-			>
+			<div class="flex flex-wrap items-end justify-between gap-3 border-b border-base-300/70 p-4">
 				<div>
 					<h2 class="text-base font-semibold tracking-tight sm:text-lg">
 						{selectedGenre ?? 'All albums'}
@@ -377,15 +444,47 @@
 						{selectedGenre ? 'in this genre' : 'in wishlist'}
 					</p>
 				</div>
-				{#if selectedGenre}
-					<button type="button" class="btn btn-ghost btn-xs" onclick={() => (selectedGenre = null)}>
-						Clear filter
+				<div class="flex flex-wrap items-center gap-1 text-xs">
+					<span class="text-base-content/50">sort:</span>
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs {albumSort === 'artist' ? 'btn-active' : ''}"
+						onclick={() => setAlbumSort('artist')}
+						title="Sort alphabetically by artist"
+					>
+						artist{sortArrow('artist')}
 					</button>
-				{/if}
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs {albumSort === 'year' ? 'btn-active' : ''}"
+						onclick={() => setAlbumSort('year')}
+						title="Sort by release year"
+					>
+						year{sortArrow('year')}
+					</button>
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs {albumSort === 'added' ? 'btn-active' : ''}"
+						onclick={() => setAlbumSort('added')}
+						title="Sort by wishlist-added date"
+					>
+						added{sortArrow('added')}
+					</button>
+					{#if selectedGenre}
+						<button
+							type="button"
+							class="btn ml-2 btn-ghost btn-xs"
+							onclick={() => (selectedGenre = null)}
+						>
+							Clear filter
+						</button>
+					{/if}
+				</div>
 			</div>
 
 			<ul class="divide-y divide-base-300/60">
 				{#each visibleAlbums as album (album.url)}
+					{@const addedDisplay = formatWishlistDate(album.dateAdded)}
 					<li>
 						<a
 							href={album.url}
@@ -400,6 +499,11 @@
 									<span class="text-base-content italic">{album.title}</span>
 									{#if album.year}
 										<span class="ml-1 text-base-content/50">({album.year})</span>
+									{/if}
+									{#if addedDisplay}
+										<span class="ml-1 text-xs text-base-content/40">
+											· added {addedDisplay}
+										</span>
 									{/if}
 								</span>
 								<span class="mt-1 flex flex-wrap gap-1">

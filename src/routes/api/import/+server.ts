@@ -41,6 +41,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			updated: outcome.updated,
 			unchanged: outcome.unchanged,
 			duplicates: outcome.duplicates,
+			datesRefreshed: outcome.datesRefreshed,
 			total: outcome.total,
 			sync: outcome.sync,
 			sourceUrl: validation.sourceUrl
@@ -91,7 +92,11 @@ function validateImportPayload(payload: unknown): ValidationOk | ValidationErr {
 			.map((g) => g.trim())
 			.filter((g, idx, arr) => g.length > 0 && arr.indexOf(g) === idx);
 
-		albums.push({ url, title, artist, year, genres });
+		// Accept the RYM-extracted wishlist date if it parses as a calendar date.
+		const dateAddedRaw = typeof obj.dateAdded === 'string' ? obj.dateAdded.trim() : '';
+		const dateAdded = /^\d{4}-\d{2}-\d{2}$/.test(dateAddedRaw) ? dateAddedRaw : undefined;
+
+		albums.push({ url, title, artist, year, genres, dateAdded });
 	}
 
 	const sourceUrl =

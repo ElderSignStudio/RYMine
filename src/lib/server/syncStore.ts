@@ -89,6 +89,7 @@ export type SyncMergeResult = {
 	added: number;
 	updated: number;
 	unchanged: number;
+	datesRefreshed: number;
 	total: number;
 };
 
@@ -111,7 +112,7 @@ function albumsDiffer(stored: WishlistAlbum, incoming: ParsedAlbum): boolean {
 export function mergeAlbumsWithUpdate(
 	existing: WishlistAlbum[],
 	incoming: ParsedAlbum[],
-	dateAdded: string
+	importedAt: string
 ): SyncMergeResult {
 	const byUrl = new Map<string, WishlistAlbum>();
 	for (const a of existing) {
@@ -121,23 +122,31 @@ export function mergeAlbumsWithUpdate(
 	let added = 0;
 	let updated = 0;
 	let unchanged = 0;
+	let datesRefreshed = 0;
 
 	for (const inc of incoming) {
 		const key = normalizeUrl(inc.url);
 		const prev = byUrl.get(key);
 		if (!prev) {
-			byUrl.set(key, { ...inc, url: key, dateAdded });
+			byUrl.set(key, { ...inc, url: key, dateAdded: inc.dateAdded ?? importedAt });
 			added += 1;
 		} else if (albumsDiffer(prev, inc)) {
-			byUrl.set(key, { ...inc, url: key, dateAdded: prev.dateAdded });
+			byUrl.set(key, { ...inc, url: key, dateAdded: inc.dateAdded ?? prev.dateAdded });
 			updated += 1;
 		} else {
+			// Metadata unchanged — but quietly refresh dateAdded if RYM provided
+			// a real wishlist date and ours is missing/different (e.g. legacy
+			// import-timestamp data). Doesn't count as "updated" in the summary.
+			if (inc.dateAdded && inc.dateAdded !== prev.dateAdded) {
+				byUrl.set(key, { ...prev, dateAdded: inc.dateAdded });
+				datesRefreshed += 1;
+			}
 			unchanged += 1;
 		}
 	}
 
 	const albums = [...byUrl.values()].sort((a, b) => a.artist.localeCompare(b.artist));
-	return { albums, added, updated, unchanged, total: albums.length };
+	return { albums, added, updated, unchanged, datesRefreshed, total: albums.length };
 }
 
 export function computePreview(session: SyncSession, current: WishlistAlbum[]): SyncPreview {
