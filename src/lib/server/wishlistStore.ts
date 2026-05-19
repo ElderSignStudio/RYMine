@@ -49,6 +49,7 @@ export type MergeResult = {
 	added: number;
 	duplicates: number;
 	datesRefreshed: number;
+	coversRefreshed: number;
 	total: number;
 };
 
@@ -65,19 +66,25 @@ export function mergeAlbums(
 	let added = 0;
 	let duplicates = 0;
 	let datesRefreshed = 0;
+	let coversRefreshed = 0;
 	for (const a of incoming) {
 		const key = normalizeUrl(a.url);
 		const prev = byUrl.get(key);
 		if (prev) {
 			duplicates += 1;
-			// Even in merge-only mode, silently refresh dateAdded if the bookmarklet
-			// supplied a real wishlist date and ours is missing or different
-			// (e.g. legacy import-timestamp data). Title/artist/year/genres are
+			// Even in merge-only mode, silently refresh dateAdded / coverUrl if
+			// the bookmarklet supplied fresh values. Title/artist/year/genres are
 			// still left alone — those only update during a Full Sync.
+			let next = prev;
 			if (a.dateAdded && a.dateAdded !== prev.dateAdded) {
-				byUrl.set(key, { ...prev, dateAdded: a.dateAdded });
+				next = { ...next, dateAdded: a.dateAdded };
 				datesRefreshed += 1;
 			}
+			if (a.coverUrl && a.coverUrl !== prev.coverUrl) {
+				next = { ...next, coverUrl: a.coverUrl };
+				coversRefreshed += 1;
+			}
+			if (next !== prev) byUrl.set(key, next);
 			continue;
 		}
 		// Prefer the RYM-extracted wishlist date when present; fall back to the
@@ -87,5 +94,8 @@ export function mergeAlbums(
 	}
 
 	const albums = [...byUrl.values()].sort((a, b) => a.artist.localeCompare(b.artist));
-	return { albums, result: { added, duplicates, datesRefreshed, total: albums.length } };
+	return {
+		albums,
+		result: { added, duplicates, datesRefreshed, coversRefreshed, total: albums.length }
+	};
 }

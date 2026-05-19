@@ -286,11 +286,13 @@
 						<span class="opacity-70">
 							{#if form.syncActive}
 								({form.updated} updated · {form.unchanged} unchanged{#if form.datesRefreshed}
-									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}
+									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}{#if form.coversRefreshed}
+									· {form.coversRefreshed} cover{form.coversRefreshed === 1 ? '' : 's'} refreshed{/if}
 								· total {form.total})
 							{:else}
 								({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped{#if form.datesRefreshed}
-									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}
+									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}{#if form.coversRefreshed}
+									· {form.coversRefreshed} cover{form.coversRefreshed === 1 ? '' : 's'} refreshed{/if}
 								· total {form.total})
 							{/if}
 						</span>
@@ -490,9 +492,29 @@
 							href={album.url}
 							target="_blank"
 							rel="noopener noreferrer"
-							class="group flex items-baseline justify-between gap-3 px-4 py-3 transition-colors duration-150 hover:bg-base-300/40"
+							class="group flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-base-300/40"
 						>
-							<span class="min-w-0">
+							<span
+								class="relative block h-11 w-11 shrink-0 overflow-hidden rounded bg-base-300/40 shadow-sm transition-transform group-hover:scale-[1.02]"
+								aria-hidden="true"
+							>
+								<span
+									class="absolute inset-0 flex items-center justify-center text-base text-base-content/30"
+								>
+									♪
+								</span>
+								{#if album.coverUrl}
+									<img
+										src={album.coverUrl}
+										alt=""
+										loading="lazy"
+										decoding="async"
+										referrerpolicy="no-referrer"
+										class="relative h-full w-full object-cover"
+									/>
+								{/if}
+							</span>
+							<span class="min-w-0 flex-1">
 								<span class="block truncate text-sm font-medium sm:text-[0.95rem]">
 									<span class="text-base-content/90">{album.artist}</span>
 									<span class="text-base-content/40"> — </span>

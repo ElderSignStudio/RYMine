@@ -90,6 +90,7 @@ export type SyncMergeResult = {
 	updated: number;
 	unchanged: number;
 	datesRefreshed: number;
+	coversRefreshed: number;
 	total: number;
 };
 
@@ -123,6 +124,7 @@ export function mergeAlbumsWithUpdate(
 	let updated = 0;
 	let unchanged = 0;
 	let datesRefreshed = 0;
+	let coversRefreshed = 0;
 
 	for (const inc of incoming) {
 		const key = normalizeUrl(inc.url);
@@ -131,22 +133,40 @@ export function mergeAlbumsWithUpdate(
 			byUrl.set(key, { ...inc, url: key, dateAdded: inc.dateAdded ?? importedAt });
 			added += 1;
 		} else if (albumsDiffer(prev, inc)) {
-			byUrl.set(key, { ...inc, url: key, dateAdded: inc.dateAdded ?? prev.dateAdded });
+			byUrl.set(key, {
+				...inc,
+				url: key,
+				dateAdded: inc.dateAdded ?? prev.dateAdded,
+				coverUrl: inc.coverUrl ?? prev.coverUrl
+			});
 			updated += 1;
 		} else {
-			// Metadata unchanged — but quietly refresh dateAdded if RYM provided
-			// a real wishlist date and ours is missing/different (e.g. legacy
-			// import-timestamp data). Doesn't count as "updated" in the summary.
+			// Metadata unchanged — quietly refresh dateAdded / coverUrl if RYM
+			// supplied newer values. Doesn't count as "updated" in the summary.
+			let next = prev;
 			if (inc.dateAdded && inc.dateAdded !== prev.dateAdded) {
-				byUrl.set(key, { ...prev, dateAdded: inc.dateAdded });
+				next = { ...next, dateAdded: inc.dateAdded };
 				datesRefreshed += 1;
 			}
+			if (inc.coverUrl && inc.coverUrl !== prev.coverUrl) {
+				next = { ...next, coverUrl: inc.coverUrl };
+				coversRefreshed += 1;
+			}
+			if (next !== prev) byUrl.set(key, next);
 			unchanged += 1;
 		}
 	}
 
 	const albums = [...byUrl.values()].sort((a, b) => a.artist.localeCompare(b.artist));
-	return { albums, added, updated, unchanged, datesRefreshed, total: albums.length };
+	return {
+		albums,
+		added,
+		updated,
+		unchanged,
+		datesRefreshed,
+		coversRefreshed,
+		total: albums.length
+	};
 }
 
 export function computePreview(session: SyncSession, current: WishlistAlbum[]): SyncPreview {

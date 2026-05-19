@@ -10,6 +10,7 @@ export type WishlistAlbum = {
 	descriptors?: string[];
 
 	dateAdded?: string;
+	coverUrl?: string;
 };
 
 export type GenreCount = {

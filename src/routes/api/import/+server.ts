@@ -42,6 +42,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			unchanged: outcome.unchanged,
 			duplicates: outcome.duplicates,
 			datesRefreshed: outcome.datesRefreshed,
+			coversRefreshed: outcome.coversRefreshed,
 			total: outcome.total,
 			sync: outcome.sync,
 			sourceUrl: validation.sourceUrl
@@ -96,7 +97,11 @@ function validateImportPayload(payload: unknown): ValidationOk | ValidationErr {
 		const dateAddedRaw = typeof obj.dateAdded === 'string' ? obj.dateAdded.trim() : '';
 		const dateAdded = /^\d{4}-\d{2}-\d{2}$/.test(dateAddedRaw) ? dateAddedRaw : undefined;
 
-		albums.push({ url, title, artist, year, genres, dateAdded });
+		// Accept the cover URL if it's a syntactically-valid http(s) URL.
+		const coverUrlRaw = typeof obj.coverUrl === 'string' ? obj.coverUrl.trim() : '';
+		const coverUrl = /^https?:\/\/[^\s]+$/i.test(coverUrlRaw) ? coverUrlRaw : undefined;
+
+		albums.push({ url, title, artist, year, genres, dateAdded, coverUrl });
 	}
 
 	const sourceUrl =

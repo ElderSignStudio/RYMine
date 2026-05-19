@@ -38,7 +38,10 @@ var genres=[];
 var gl=row.querySelectorAll('a[href*="/genre/"], a[href*="/genres/"]');
 if(gl.length){gl.forEach(function(g){var t=norm(g.textContent);if(t&&genres.indexOf(t)===-1)genres.push(t);});}
 else{row.querySelectorAll('.genre').forEach(function(g){var t=norm(g.textContent);if(t&&genres.indexOf(t)===-1)genres.push(t);});}
-found.set(url,{url:url,title:title,artist:artist,year:year,dateAdded:dateAdded,genres:genres});
+var coverUrl;
+var imgEl=row.querySelector('.or_q_thumb_album img[src], img[src]');
+if(imgEl){var src=imgEl.getAttribute('src');if(src){try{var u=new URL(src,location.origin).href;if(/^https?:\\/\\//i.test(u))coverUrl=u;}catch(e){}}}
+found.set(url,{url:url,title:title,artist:artist,year:year,dateAdded:dateAdded,coverUrl:coverUrl,genres:genres});
 });
 var albums=Array.from(found.values());
 if(!albums.length){alert('RYMScraper: no albums detected on this page. Are you on a wishlist?');return;}
@@ -46,6 +49,7 @@ fetch(ENDPOINT,{method:'POST',mode:'cors',headers:{'content-type':'application/j
 if(o.s>=200&&o.s<300&&o.b&&o.b.ok){
 var msg='RYMScraper: imported '+o.b.added+' new, '+o.b.duplicates+' duplicate';
 if(o.b.datesRefreshed){msg+=', '+o.b.datesRefreshed+' date'+(o.b.datesRefreshed===1?'':'s')+' refreshed';}
+if(o.b.coversRefreshed){msg+=', '+o.b.coversRefreshed+' cover'+(o.b.coversRefreshed===1?'':'s')+' refreshed';}
 msg+=' (total '+o.b.total+').';
 if(o.b.sync&&o.b.sync.active){msg+=' [sync: page '+o.b.sync.pageCount+', '+o.b.sync.totalSeen+' albums seen]';}
 alert(msg);

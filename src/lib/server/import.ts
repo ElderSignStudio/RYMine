@@ -17,6 +17,7 @@ export type ImportOutcome = {
 	unchanged: number;
 	duplicates: number;
 	datesRefreshed: number;
+	coversRefreshed: number;
 	total: number;
 	sync: ImportSyncInfo;
 };
@@ -45,6 +46,7 @@ export async function processImport(incoming: ParsedAlbum[]): Promise<ImportOutc
 			unchanged: r.unchanged,
 			duplicates: r.updated + r.unchanged,
 			datesRefreshed: r.datesRefreshed,
+			coversRefreshed: r.coversRefreshed,
 			total: r.total,
 			sync: {
 				active: true,
@@ -63,6 +65,7 @@ export async function processImport(incoming: ParsedAlbum[]): Promise<ImportOutc
 		unchanged: 0,
 		duplicates: r.result.duplicates,
 		datesRefreshed: r.result.datesRefreshed,
+		coversRefreshed: r.result.coversRefreshed,
 		total: r.result.total,
 		sync: { active: false }
 	};

@@ -20,7 +20,7 @@ function resolveUrl(href: string): string | null {
 
 export type ParsedAlbum = Pick<
 	WishlistAlbum,
-	'artist' | 'title' | 'year' | 'url' | 'genres' | 'dateAdded'
+	'artist' | 'title' | 'year' | 'url' | 'genres' | 'dateAdded' | 'coverUrl'
 >;
 
 export function parseWishlistHtml(html: string): ParsedAlbum[] {
@@ -89,7 +89,19 @@ export function parseWishlistHtml(html: string): ParsedAlbum[] {
 			});
 		}
 
-		found.set(url, { url, title, artist, year, genres, dateAdded });
+		// Cover art — RYM wishlist rows have one <img> in the thumb cell.
+		// Prefer the explicit thumb container, then fall back to the first
+		// image in the row. RYM's src is often protocol-relative
+		// ("//cdn.sonemic.net/..."), so resolve against rateyourmusic.com.
+		let coverUrl: string | undefined;
+		const coverImg = scope.find('.or_q_thumb_album img[src], img[src]').first();
+		const src = coverImg.attr('src');
+		if (src) {
+			const resolved = resolveUrl(src);
+			if (resolved && /^https?:\/\//i.test(resolved)) coverUrl = resolved;
+		}
+
+		found.set(url, { url, title, artist, year, genres, dateAdded, coverUrl });
 	});
 
 	return [...found.values()];
