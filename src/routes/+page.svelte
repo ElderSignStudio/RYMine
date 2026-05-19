@@ -72,6 +72,18 @@
 		return albumDir === 'asc' ? ' ↑' : ' ↓';
 	}
 
+	const unenrichedCount = $derived(
+		data.albums.filter(
+			(a) =>
+				!a.enrichedAt ||
+				typeof a.rymRating !== 'number' ||
+				!a.descriptors ||
+				a.descriptors.length === 0 ||
+				!a.secondaryGenres ||
+				a.secondaryGenres.length === 0
+		).length
+	);
+
 	const sync = $derived(data.syncSession);
 	const previewSeverity = $derived.by<'none' | 'mild' | 'strong'>(() => {
 		const p = sync?.preview;
@@ -174,6 +186,19 @@
 					title="Set up the one-click browser bookmarklet"
 				>
 					Bookmarklet
+				</a>
+
+				<a
+					href="/queue"
+					class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
+					title="Albums still missing detail metadata"
+				>
+					Queue
+					{#if unenrichedCount > 0}
+						<span class="ml-1 badge badge-xs font-medium badge-warning">
+							{unenrichedCount}
+						</span>
+					{/if}
 				</a>
 
 				<form
@@ -487,77 +512,81 @@
 			<ul class="divide-y divide-base-300/60">
 				{#each visibleAlbums as album (album.url)}
 					{@const addedDisplay = formatWishlistDate(album.dateAdded)}
-					<li>
-						<a
-							href={album.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="group flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-base-300/40"
-						>
-							<span
-								class="relative block h-11 w-11 shrink-0 overflow-hidden rounded bg-base-300/40 shadow-sm transition-transform group-hover:scale-[1.02]"
-								aria-hidden="true"
+					<li class="group transition-colors duration-150 hover:bg-base-300/40">
+						<div class="flex items-center gap-3 px-4 pt-3">
+							<a
+								href="/album/{album.id}"
+								class="flex min-w-0 flex-1 items-center gap-3"
+								title="Open local detail page"
 							>
 								<span
-									class="absolute inset-0 flex items-center justify-center text-base text-base-content/30"
+									class="relative block h-11 w-11 shrink-0 overflow-hidden rounded bg-base-300/40 shadow-sm transition-transform group-hover:scale-[1.02]"
+									aria-hidden="true"
 								>
-									♪
-								</span>
-								{#if album.coverUrl}
-									<img
-										src={album.coverUrl}
-										alt=""
-										loading="lazy"
-										decoding="async"
-										referrerpolicy="no-referrer"
-										class="relative h-full w-full object-cover"
-									/>
-								{/if}
-							</span>
-							<span class="min-w-0 flex-1">
-								<span class="block truncate text-sm font-medium sm:text-[0.95rem]">
-									<span class="text-base-content/90">{album.artist}</span>
-									<span class="text-base-content/40"> — </span>
-									<span class="text-base-content italic">{album.title}</span>
-									{#if album.year}
-										<span class="ml-1 text-base-content/50">({album.year})</span>
-									{/if}
-									{#if typeof album.rymRating === 'number'}
-										<span class="ml-1 text-xs text-base-content/55" title="RYM average rating">
-											· ★ {album.rymRating.toFixed(2)}
-										</span>
-									{/if}
-									{#if typeof album.myRating === 'number'}
-										<span class="ml-1 text-xs font-medium text-primary/80" title="Your rating">
-											· you {album.myRating}
-										</span>
-									{/if}
-									{#if addedDisplay}
-										<span class="ml-1 text-xs text-base-content/40">
-											· added {addedDisplay}
-										</span>
+									<span
+										class="absolute inset-0 flex items-center justify-center text-base text-base-content/30"
+									>
+										♪
+									</span>
+									{#if album.coverUrl}
+										<img
+											src={album.coverUrl}
+											alt=""
+											loading="lazy"
+											decoding="async"
+											referrerpolicy="no-referrer"
+											class="relative h-full w-full object-cover"
+										/>
 									{/if}
 								</span>
-								<span class="mt-1 flex flex-wrap gap-1">
-									{#each album.genres as g (g)}
-										<button
-											type="button"
-											class="badge badge-ghost badge-xs transition hover:badge-primary"
-											onclick={(e) => {
-												e.preventDefault();
-												selectGenre(g);
-											}}
-										>
-											{g}
-										</button>
-									{/each}
+								<span class="min-w-0 flex-1">
+									<span class="block truncate text-sm font-medium sm:text-[0.95rem]">
+										<span class="text-base-content/90">{album.artist}</span>
+										<span class="text-base-content/40"> — </span>
+										<span class="text-base-content italic">{album.title}</span>
+										{#if album.year}
+											<span class="ml-1 text-base-content/50">({album.year})</span>
+										{/if}
+										{#if typeof album.rymRating === 'number'}
+											<span class="ml-1 text-xs text-base-content/55" title="RYM average rating">
+												· ★ {album.rymRating.toFixed(2)}
+											</span>
+										{/if}
+										{#if typeof album.myRating === 'number'}
+											<span class="ml-1 text-xs font-medium text-primary/80" title="Your rating">
+												· you {album.myRating}
+											</span>
+										{/if}
+										{#if addedDisplay}
+											<span class="ml-1 text-xs text-base-content/40">
+												· added {addedDisplay}
+											</span>
+										{/if}
+									</span>
 								</span>
-							</span>
-							<span
-								class="shrink-0 self-center text-xs text-base-content/30 transition group-hover:text-primary"
-								aria-hidden="true">↗</span
+							</a>
+							<a
+								href={album.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="shrink-0 self-center text-xs text-base-content/30 transition group-hover:text-primary/70 hover:text-primary"
+								aria-label="Open on Rate Your Music"
+								title="Open on Rate Your Music"
 							>
-						</a>
+								↗
+							</a>
+						</div>
+						<div class="flex flex-wrap gap-1 px-4 pb-3 pl-17">
+							{#each album.genres as g (g)}
+								<button
+									type="button"
+									class="badge badge-ghost badge-xs transition hover:badge-primary"
+									onclick={() => selectGenre(g)}
+								>
+									{g}
+								</button>
+							{/each}
+						</div>
 					</li>
 				{:else}
 					<li class="px-4 py-10 text-center text-sm text-base-content/50">
