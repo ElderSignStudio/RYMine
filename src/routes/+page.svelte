@@ -522,6 +522,16 @@
 									{#if album.year}
 										<span class="ml-1 text-base-content/50">({album.year})</span>
 									{/if}
+									{#if typeof album.rymRating === 'number'}
+										<span class="ml-1 text-xs text-base-content/55" title="RYM average rating">
+											· ★ {album.rymRating.toFixed(2)}
+										</span>
+									{/if}
+									{#if typeof album.myRating === 'number'}
+										<span class="ml-1 text-xs font-medium text-primary/80" title="Your rating">
+											· you {album.myRating}
+										</span>
+									{/if}
 									{#if addedDisplay}
 										<span class="ml-1 text-xs text-base-content/40">
 											· added {addedDisplay}

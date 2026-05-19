@@ -1,4 +1,9 @@
-import { buildBookmarkletHref, buildBookmarkletSource } from '$lib/server/bookmarklet';
+import {
+	buildBookmarkletHref,
+	buildBookmarkletSource,
+	buildEnrichBookmarkletHref,
+	buildEnrichBookmarkletSource
+} from '$lib/server/bookmarklet';
 import type { PageServerLoad } from './$types';
 
 // This app is local-only over plain HTTP loopback. SvelteKit's `url.origin`
@@ -7,11 +12,15 @@ import type { PageServerLoad } from './$types';
 // Any change here breaks the bookmarklet's hard-coded endpoint URL.
 export const load: PageServerLoad = ({ url }) => {
 	const origin = `http://${url.host}`;
-	const endpoint = `${origin}/api/import`;
+	const importEndpoint = `${origin}/api/import`;
+	const enrichEndpoint = `${origin}/api/enrich`;
 	return {
-		endpoint,
 		origin,
-		source: buildBookmarkletSource(endpoint),
-		href: buildBookmarkletHref(endpoint)
+		importEndpoint,
+		enrichEndpoint,
+		importSource: buildBookmarkletSource(importEndpoint),
+		importHref: buildBookmarkletHref(importEndpoint),
+		enrichSource: buildEnrichBookmarkletSource(enrichEndpoint),
+		enrichHref: buildEnrichBookmarkletHref(enrichEndpoint)
 	};
 };

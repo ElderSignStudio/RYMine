@@ -11,6 +11,16 @@ export type WishlistAlbum = {
 
 	dateAdded?: string;
 	coverUrl?: string;
+
+	// Album-detail enrichment fields, populated by the "Enrich Album" bookmarklet
+	// when run on a RYM release page. All optional — albums without these still
+	// render correctly.
+	largeCoverUrl?: string;
+	rymRating?: number;
+	primaryGenres?: string[];
+	secondaryGenres?: string[];
+	myRating?: number;
+	enrichedAt?: string;
 };
 
 export type GenreCount = {
