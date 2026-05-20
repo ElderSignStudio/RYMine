@@ -2,7 +2,12 @@
 	import { invalidateAll } from '$app/navigation';
 	import { formatWishlistDate } from '$lib/dates';
 	import { starString } from '$lib/stars';
-	import { STREAMING_ORDER, STREAMING_SERVICES, hasAnyStreamingLink } from '$lib/streaming';
+	import {
+		STREAMING_ORDER,
+		STREAMING_SERVICES,
+		appHref,
+		hasAnyStreamingLink
+	} from '$lib/streaming';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -127,14 +132,18 @@
 					</h2>
 					<div class="flex flex-wrap gap-2">
 						{#each STREAMING_ORDER as key (key)}
-							{@const href = album.streamingLinks[key]}
-							{#if href}
+							{@const webUrl = album.streamingLinks[key]}
+							{#if webUrl}
+								{@const launch = appHref(key, webUrl)}
+								{@const usesAppScheme = launch !== webUrl}
 								<a
-									{href}
+									href={launch}
 									target="_blank"
 									rel="noopener noreferrer"
 									class="btn gap-2 border-base-300/70 transition btn-outline btn-sm hover:-translate-y-0.5 hover:bg-base-300/40"
-									title="Open on {STREAMING_SERVICES[key].label}"
+									title={usesAppScheme
+										? `Open in ${STREAMING_SERVICES[key].label} app · ${webUrl}`
+										: `Open on ${STREAMING_SERVICES[key].label} · ${webUrl}`}
 								>
 									<span
 										class="h-2 w-2 rounded-full {STREAMING_SERVICES[key].dot}"

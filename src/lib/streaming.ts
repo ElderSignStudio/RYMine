@@ -24,3 +24,38 @@ export function hasAnyStreamingLink(links: StreamingLinks | undefined | null): b
 	if (!links) return false;
 	return STREAMING_ORDER.some((k) => Boolean(links[k]));
 }
+
+/**
+ * Convert a stored web URL into the app-scheme URL that macOS hands off to
+ * the native client when installed. Falls back to the original URL when no
+ * conversion applies (or pattern doesn't match) so the button is never broken.
+ *
+ *   Spotify     https://open.spotify.com/<type>/<id>      → spotify:<type>:<id>
+ *   Apple Music https://[geo.]music.apple.com/<path>      → music://music.apple.com/<path>
+ *   YouTube     (no widely-installed macOS app)           → unchanged
+ *   Bandcamp    (no widely-installed macOS app)           → unchanged
+ *
+ * If the relevant app isn't installed the OS prompts and the user can cancel.
+ * We deliberately keep the stored value as the web URL — that's the portable
+ * one we can always share / open elsewhere.
+ */
+export function appHref(service: StreamingKey, webUrl: string | undefined): string {
+	if (!webUrl) return '';
+	if (service === 'spotify') {
+		const m = webUrl.match(
+			/\bopen\.spotify\.com\/(track|album|artist|playlist|episode|show)\/([a-zA-Z0-9]+)/i
+		);
+		if (m) return `spotify:${m[1]}:${m[2]}`;
+	} else if (service === 'appleMusic') {
+		// Apple Music's app understands music.apple.com paths but not the geo.
+		// routing subdomain RYM links to. Strip it before swapping schemes.
+		const normalized = webUrl.replace(
+			/^https?:\/\/geo\.music\.apple\.com/i,
+			'https://music.apple.com'
+		);
+		if (/^https?:\/\/(?:music|itunes)\.apple\.com\//i.test(normalized)) {
+			return normalized.replace(/^https?:/i, 'music:');
+		}
+	}
+	return webUrl;
+}
