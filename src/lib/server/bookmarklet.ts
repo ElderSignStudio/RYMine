@@ -118,44 +118,50 @@ var descriptors=[];
   });
 });
 
-// User's own rating. RYM renders "your rating" visually as stars (not a number
-// in the DOM), so we try several increasingly-fuzzy strategies. Only a strictly
-// positive 0–5 value is kept; unrated → undefined → not sent.
-//
-// HEURISTIC SELECTORS — RYM occasionally renames classes. If extraction
-// returns 0 / undefined for albums you've rated, paste the rating widget's
-// outerHTML and we can tighten the selectors. Strategies, in order:
-//   1) explicit text/value carrying the number (rare)
-//   2) data-rating / data-user-rating / data-value attributes on a star container
-//   3) count "filled" / "half" star descendants of a user-rating-looking container
+// User's own rating. RYM's widget exposes the value in two places:
+//   - <div class="rating_num">5.0</div>   -> literal numeric string ("---" if unrated)
+//   - <div class="rating_stars star-10m"> -> class "star-Nm" where N is in
+//     half-star units (so N/2 = 0..5, N=10 means 5 full stars, N=7 means 3.5).
+// The visible stars are a CSS sprite keyed off the class, not individual
+// elements you can count — that's why earlier "filled" descendant counting
+// never worked. We try .rating_num first (most direct), .rating_stars as
+// backup, and keep some generic fallbacks for future-proofing. Only a
+// strictly positive 0–5 value is kept; unrated → undefined → not sent.
 var myRating;
 
-// (1) numeric text or data-value on an obvious user-rating element
-var myEl=document.querySelector('.my_catalog_rating, .your_rating, .release_my_rating, .release_rating_user, [class*="my_rating"]:not([class*="my_ratings"]), .user_rating_score, .user-rating-value');
-if(myEl){
-  var n=num(myEl.textContent)||num(myEl.getAttribute('data-value'));
+// (1) PRIMARY: RYM's .rating_num child holds the numeric rating.
+// Unrated albums contain "---" → num() returns undefined.
+var ratingNum=document.querySelector('.my_catalog_rating .rating_num, [id^="rating_num_"]');
+if(ratingNum){
+  var n=num(ratingNum.textContent);
   if(typeof n==='number'&&n>0&&n<=5)myRating=n;
 }
 
-// (2) data-rating-style attribute on a star widget container
+// (2) BACKUP: parse RYM's star-Nm class on the .rating_stars element.
 if(myRating===undefined){
-  var starsEl=document.querySelector('[data-user-rating]:not([data-user-rating="0"]):not([data-user-rating=""]), [data-my-rating]:not([data-my-rating="0"]):not([data-my-rating=""]), .user_rating[data-rating], .release_my_rating[data-rating]');
-  if(starsEl){
-    var attr=starsEl.getAttribute('data-user-rating')||starsEl.getAttribute('data-my-rating')||starsEl.getAttribute('data-rating');
-    var n2=num(attr);
+  var starsClassEl=document.querySelector('.my_catalog_rating .rating_stars, [id^="rating_stars_"]');
+  if(starsClassEl){
+    var m=starsClassEl.className.match(/\\bstar-(\\d{1,2})m\\b/);
+    if(m){var h=parseInt(m[1],10);if(h>0&&h<=10)myRating=h/2;}
+  }
+}
+
+// (3) generic numeric-text fallback for older / non-RYM-standard widgets
+if(myRating===undefined){
+  var myEl=document.querySelector('.your_rating, .release_my_rating, .release_rating_user, [class*="my_rating"]:not([class*="my_ratings"]):not(.my_catalog_rating), .user_rating_score, .user-rating-value');
+  if(myEl){
+    var n2=num(myEl.textContent)||num(myEl.getAttribute('data-value'));
     if(typeof n2==='number'&&n2>0&&n2<=5)myRating=n2;
   }
 }
 
-// (3) count filled / half stars in a user-rating container (visual fallback)
+// (4) data-rating-style attribute fallback
 if(myRating===undefined){
-  var widgets=document.querySelectorAll('.my_catalog_rating, .your_rating, .release_my_rating, .release_rating_user, [class*="my_rating"]:not([class*="my_ratings"]), .user_rating, .page_release_my_rating');
-  for(var wi=0;wi<widgets.length;wi++){
-    var w=widgets[wi];
-    var full=w.querySelectorAll('[class*="filled"], [class*="full"], [class*="solid"], [class*="active"], [class*="selected"], [class*="is-on"]').length;
-    var half=w.querySelectorAll('[class*="half"]').length;
-    var stars=full+half*0.5;
-    if(stars>0&&stars<=5){myRating=stars;break;}
+  var starsAttrEl=document.querySelector('[data-user-rating]:not([data-user-rating="0"]):not([data-user-rating=""]), [data-my-rating]:not([data-my-rating="0"]):not([data-my-rating=""]), .user_rating[data-rating], .release_my_rating[data-rating]');
+  if(starsAttrEl){
+    var attr=starsAttrEl.getAttribute('data-user-rating')||starsAttrEl.getAttribute('data-my-rating')||starsAttrEl.getAttribute('data-rating');
+    var n3=num(attr);
+    if(typeof n3==='number'&&n3>0&&n3<=5)myRating=n3;
   }
 }
 
