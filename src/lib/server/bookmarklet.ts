@@ -104,18 +104,59 @@ function collect(sel){var out=[];document.querySelectorAll(sel).forEach(function
 // Primary / secondary genre lists — RYM uses pri/sec class hooks.
 var primaryGenres=collect('.release_pri_genres a, .release_pri_genres .genre');
 var secondaryGenres=collect('.release_sec_genres a, .release_sec_genres .genre');
-// Descriptors live in their own pri/sec containers too.
-var descriptors=collect('.release_pri_descriptors a, .release_pri_descriptors .descriptor, .release_sec_descriptors a, .release_sec_descriptors .descriptor, .release_descriptors a, .release_descriptors .descriptor');
+// Descriptors: RYM puts all descriptors in a single span as comma-separated
+// text (no inner anchors). e.g. <span class="release_pri_descriptors">
+// instrumental, progressive, complex, technical, playful</span>. So we read
+// the wrapper text and split on commas rather than looking for child links.
+var descriptors=[];
+['.release_pri_descriptors','.release_sec_descriptors'].forEach(function(sel){
+  var el=document.querySelector(sel);
+  if(!el)return;
+  norm(el.textContent).split(/\\s*,\\s*/).forEach(function(d){
+    d=d.trim();
+    if(d&&descriptors.indexOf(d)===-1)descriptors.push(d);
+  });
+});
 
-// User's own rating (only if logged in AND >0). RYM renders this as either
-// a number, a fraction "X / 5", or a stars widget — try a few hooks and
-// only keep a positive numeric value.
+// User's own rating. RYM renders "your rating" visually as stars (not a number
+// in the DOM), so we try several increasingly-fuzzy strategies. Only a strictly
+// positive 0–5 value is kept; unrated → undefined → not sent.
+//
+// HEURISTIC SELECTORS — RYM occasionally renames classes. If extraction
+// returns 0 / undefined for albums you've rated, paste the rating widget's
+// outerHTML and we can tighten the selectors. Strategies, in order:
+//   1) explicit text/value carrying the number (rare)
+//   2) data-rating / data-user-rating / data-value attributes on a star container
+//   3) count "filled" / "half" star descendants of a user-rating-looking container
 var myRating;
-var myEl=document.querySelector('.my_catalog_rating, .your_rating, .release_my_rating, [class*="my_rating"]');
-if(myEl){var n=num(myEl.textContent);if(typeof n==='number'&&n>0)myRating=n;}
+
+// (1) numeric text or data-value on an obvious user-rating element
+var myEl=document.querySelector('.my_catalog_rating, .your_rating, .release_my_rating, .release_rating_user, [class*="my_rating"]:not([class*="my_ratings"]), .user_rating_score, .user-rating-value');
+if(myEl){
+  var n=num(myEl.textContent)||num(myEl.getAttribute('data-value'));
+  if(typeof n==='number'&&n>0&&n<=5)myRating=n;
+}
+
+// (2) data-rating-style attribute on a star widget container
 if(myRating===undefined){
-  var starsEl=document.querySelector('[class*="rating"][data-rating], [data-user-rating]');
-  if(starsEl){var n2=num(starsEl.getAttribute('data-rating')||starsEl.getAttribute('data-user-rating'));if(typeof n2==='number'&&n2>0)myRating=n2;}
+  var starsEl=document.querySelector('[data-user-rating]:not([data-user-rating="0"]):not([data-user-rating=""]), [data-my-rating]:not([data-my-rating="0"]):not([data-my-rating=""]), .user_rating[data-rating], .release_my_rating[data-rating]');
+  if(starsEl){
+    var attr=starsEl.getAttribute('data-user-rating')||starsEl.getAttribute('data-my-rating')||starsEl.getAttribute('data-rating');
+    var n2=num(attr);
+    if(typeof n2==='number'&&n2>0&&n2<=5)myRating=n2;
+  }
+}
+
+// (3) count filled / half stars in a user-rating container (visual fallback)
+if(myRating===undefined){
+  var widgets=document.querySelectorAll('.my_catalog_rating, .your_rating, .release_my_rating, .release_rating_user, [class*="my_rating"]:not([class*="my_ratings"]), .user_rating, .page_release_my_rating');
+  for(var wi=0;wi<widgets.length;wi++){
+    var w=widgets[wi];
+    var full=w.querySelectorAll('[class*="filled"], [class*="full"], [class*="solid"], [class*="active"], [class*="selected"], [class*="is-on"]').length;
+    var half=w.querySelectorAll('[class*="half"]').length;
+    var stars=full+half*0.5;
+    if(stars>0&&stars<=5){myRating=stars;break;}
+  }
 }
 
 // Canonical URL — strip query/hash/trailing slash; server normalises again.

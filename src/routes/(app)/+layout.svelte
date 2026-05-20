@@ -1,17 +1,18 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
-	import { formatWishlistDate } from '$lib/dates';
+	import { invalidateAll, goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { formatLastScraped, genreCounts } from '$lib/genres';
-	import type { ActionData, PageData } from './$types';
+	import { uiState } from '$lib/uiState.svelte';
+	import type { LayoutData } from './$types';
 
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
 
-	let genreFilter = $state('');
-	let selectedGenre = $state<string | null>(null);
-	let genreSort = $state<'name' | 'count'>('name');
-	let albumSort = $state<'artist' | 'year' | 'added'>('artist');
-	let albumDir = $state<'asc' | 'desc'>('asc');
+	// Form result lives on whichever child page just submitted. Reading it
+	// from $app/state lets banners render here in the layout regardless of
+	// which child page is currently mounted.
+	const form = $derived(page.form);
+
 	let importing = $state(false);
 	let refreshing = $state(false);
 	let fileInput = $state<HTMLInputElement | null>(null);
@@ -23,54 +24,11 @@
 	const visibleGenres = $derived(
 		[...allGenres]
 			.sort((a, b) => {
-				if (genreSort === 'count') return b.count - a.count || a.name.localeCompare(b.name);
+				if (uiState.genreSort === 'count') return b.count - a.count || a.name.localeCompare(b.name);
 				return a.name.localeCompare(b.name);
 			})
-			.filter((g) => g.name.toLowerCase().includes(genreFilter.trim().toLowerCase()))
+			.filter((g) => g.name.toLowerCase().includes(uiState.genreFilter.trim().toLowerCase()))
 	);
-
-	const visibleAlbums = $derived.by(() => {
-		const base = selectedGenre
-			? data.albums.filter((a) => a.genres.includes(selectedGenre!))
-			: data.albums;
-		const sign = albumDir === 'asc' ? 1 : -1;
-		const sorted = [...base].sort((a, b) => {
-			if (albumSort === 'artist') {
-				return sign * a.artist.localeCompare(b.artist);
-			}
-			if (albumSort === 'year') {
-				const ay = a.year;
-				const by = b.year;
-				if (ay === undefined && by === undefined) return 0;
-				if (ay === undefined) return 1; // missing always last
-				if (by === undefined) return -1;
-				return sign * (ay - by);
-			}
-			// 'added'
-			const ad = a.dateAdded ?? '';
-			const bd = b.dateAdded ?? '';
-			if (!ad && !bd) return 0;
-			if (!ad) return 1; // missing always last
-			if (!bd) return -1;
-			return sign * ad.localeCompare(bd);
-		});
-		return sorted;
-	});
-
-	function setAlbumSort(mode: 'artist' | 'year' | 'added') {
-		if (albumSort === mode) {
-			albumDir = albumDir === 'asc' ? 'desc' : 'asc';
-		} else {
-			albumSort = mode;
-			// Sensible default direction per mode.
-			albumDir = mode === 'artist' ? 'asc' : 'desc';
-		}
-	}
-
-	function sortArrow(mode: 'artist' | 'year' | 'added'): string {
-		if (albumSort !== mode) return '';
-		return albumDir === 'asc' ? ' ↑' : ' ↓';
-	}
 
 	const unenrichedCount = $derived(
 		data.albums.filter(
@@ -92,8 +50,10 @@
 		return 'mild';
 	});
 
-	function selectGenre(name: string) {
-		selectedGenre = selectedGenre === name ? null : name;
+	async function selectGenre(name: string) {
+		uiState.selectedGenre = uiState.selectedGenre === name ? null : name;
+		// If we're not on the album list, jump to it so the filter takes effect.
+		if (page.url.pathname !== '/') await goto('/');
 	}
 
 	function pickFiles() {
@@ -116,10 +76,7 @@
 		}
 	}
 
-	// The bookmarklet POSTs to /api/import from a different tab, so the local app
-	// doesn't naturally know its sync counts changed. While a sync is active,
-	// poll every 3s so the banner stays roughly live and Finish opens with
-	// fresh numbers.
+	// Poll while a sync is active so banner counts stay roughly live.
 	$effect(() => {
 		if (!sync) return;
 		const id = setInterval(() => invalidateAll(), 3000);
@@ -127,8 +84,6 @@
 	});
 
 	async function openFinishModal() {
-		// Belt-and-suspenders: ensure the preview reflects the current session
-		// state before we render it.
 		refreshing = true;
 		await invalidateAll();
 		refreshing = false;
@@ -142,7 +97,7 @@
 		class="sticky top-0 z-20 border-b border-base-300/70 bg-base-200/80 backdrop-blur supports-backdrop-filter:bg-base-200/60"
 	>
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
-			<div class="flex items-center gap-2">
+			<a href="/" class="flex items-center gap-2" title="Back to album list">
 				<span class="text-2xl" aria-hidden="true">🎚️</span>
 				<div class="leading-tight">
 					<h1 class="text-lg font-semibold tracking-tight sm:text-xl">RYMScraper</h1>
@@ -150,13 +105,13 @@
 						a cozy little wishlist, sorted by mood
 					</p>
 				</div>
-			</div>
+			</a>
 
 			<div class="ml-auto flex items-center gap-3">
 				{#if data.source === 'mock'}
 					<span
 						class="badge hidden badge-sm badge-warning md:inline-flex"
-						title="No data/wishlist.json yet — showing mock data. Import saved RYM wishlist HTML to populate."
+						title="No data/wishlist.json yet — showing mock data."
 					>
 						mock data
 					</span>
@@ -169,7 +124,7 @@
 				</span>
 
 				{#if !sync}
-					<form method="POST" action="?/startSync" class="contents" use:enhance>
+					<form method="POST" action="/?/startSync" class="contents" use:enhance>
 						<button
 							type="submit"
 							class="btn hidden btn-ghost transition btn-outline btn-sm hover:-translate-y-0.5 sm:inline-flex"
@@ -183,7 +138,7 @@
 				<a
 					href="/bookmarklet"
 					class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
-					title="Set up the one-click browser bookmarklet"
+					title="Set up the one-click browser bookmarklets"
 				>
 					Bookmarklet
 				</a>
@@ -204,7 +159,7 @@
 				<form
 					bind:this={importForm}
 					method="POST"
-					action="?/import"
+					action="/?/import"
 					enctype="multipart/form-data"
 					class="contents"
 					use:enhance={() => {
@@ -285,18 +240,19 @@
 					</button>
 					<form
 						method="POST"
-						action="?/cancelSync"
+						action="/?/cancelSync"
 						class="contents"
 						onsubmit={confirmCancelSync}
 						use:enhance
 					>
-						<button type="submit" class="btn btn-ghost btn-sm"> Cancel Sync </button>
+						<button type="submit" class="btn btn-ghost btn-sm">Cancel Sync</button>
 					</form>
 				</div>
 			</div>
 		</div>
 	{/if}
 
+	<!-- Action-result banners (whichever child page just submitted) -->
 	{#if form}
 		<div class="mx-auto w-full max-w-7xl px-4 pt-3 sm:px-6">
 			{#if form.success}
@@ -323,17 +279,10 @@
 						</span>
 					</span>
 				</div>
-				{#if form.errors && form.errors.length > 0}
-					<ul class="mt-2 list-disc pl-6 text-xs text-base-content/60">
-						{#each form.errors as msg (msg)}
-							<li>{msg}</li>
-						{/each}
-					</ul>
-				{/if}
 			{:else if form.syncStarted}
 				<div
-					role="status"
 					class="alert border-info/30 bg-info/10 py-2 text-sm alert-info shadow-sm"
+					role="status"
 				>
 					<span>
 						Full sync started. Snapshot taken: <strong>{form.initialCount}</strong>
@@ -343,18 +292,18 @@
 				</div>
 			{:else if form.syncFinished}
 				<div
-					role="status"
 					class="alert border-success/30 bg-success/10 py-2 text-sm alert-success shadow-sm"
+					role="status"
 				>
 					<span>
-						Sync complete · added <strong>{form.added}</strong>, updated {form.updated}, unchanged {form.unchanged},
-						removed <strong>{form.removed}</strong> (total {form.total})
+						Sync complete · added <strong>{form.added}</strong>, updated {form.updated}, unchanged
+						{form.unchanged}, removed <strong>{form.removed}</strong> (total {form.total})
 					</span>
 				</div>
 			{:else if form.syncCancelled}
 				<div
-					role="status"
 					class="alert border-warning/30 bg-warning/10 py-2 text-sm alert-warning shadow-sm"
+					role="status"
 				>
 					<span>
 						Sync cancelled. {form.pageCount}
@@ -365,20 +314,12 @@
 				<div role="alert" class="alert py-2 text-sm alert-error shadow-sm">
 					<span>{form.error}</span>
 				</div>
-				{#if form.errors && form.errors.length > 0}
-					<ul class="mt-2 list-disc pl-6 text-xs text-base-content/60">
-						{#each form.errors as msg (msg)}
-							<li>{msg}</li>
-						{/each}
-					</ul>
-				{/if}
 			{/if}
 		</div>
 	{/if}
 
-	<!-- Main two-pane layout -->
+	<!-- Main two-pane layout: sidebar + right panel slot -->
 	<main class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row">
-		<!-- Left: genres -->
 		<aside
 			class="scrollbar-soft card w-full shrink-0 overflow-hidden border border-base-300/70 bg-base-200/60 shadow-sm lg:sticky lg:top-21 lg:max-h-[calc(100vh-6.5rem)] lg:w-72"
 		>
@@ -393,16 +334,16 @@
 					<span class="text-base-content/50">sort:</span>
 					<button
 						type="button"
-						class="btn btn-ghost btn-xs {genreSort === 'name' ? 'btn-active' : ''}"
-						onclick={() => (genreSort = 'name')}
+						class="btn btn-ghost btn-xs {uiState.genreSort === 'name' ? 'btn-active' : ''}"
+						onclick={() => (uiState.genreSort = 'name')}
 						title="Alphabetical"
 					>
 						A–Z
 					</button>
 					<button
 						type="button"
-						class="btn btn-ghost btn-xs {genreSort === 'count' ? 'btn-active' : ''}"
-						onclick={() => (genreSort = 'count')}
+						class="btn btn-ghost btn-xs {uiState.genreSort === 'count' ? 'btn-active' : ''}"
+						onclick={() => (uiState.genreSort = 'count')}
 						title="By album count, highest first"
 					>
 						count
@@ -423,7 +364,7 @@
 					</svg>
 					<input
 						type="text"
-						bind:value={genreFilter}
+						bind:value={uiState.genreFilter}
 						placeholder="Filter genres…"
 						class="grow bg-transparent outline-none"
 						aria-label="Filter genres"
@@ -439,7 +380,7 @@
 							onclick={() => selectGenre(genre.name)}
 							class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150
 								hover:bg-base-300/60
-								{selectedGenre === genre.name
+								{uiState.selectedGenre === genre.name
 								? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
 								: ''}"
 						>
@@ -458,151 +399,18 @@
 			</ul>
 		</aside>
 
-		<!-- Right: albums -->
-		<section class="card flex-1 overflow-hidden border border-base-300/70 bg-base-200/40 shadow-sm">
-			<div class="flex flex-wrap items-end justify-between gap-3 border-b border-base-300/70 p-4">
-				<div>
-					<h2 class="text-base font-semibold tracking-tight sm:text-lg">
-						{selectedGenre ?? 'All albums'}
-					</h2>
-					<p class="text-xs text-base-content/60">
-						{visibleAlbums.length}
-						{visibleAlbums.length === 1 ? 'album' : 'albums'}
-						{selectedGenre ? 'in this genre' : 'in wishlist'}
-					</p>
-				</div>
-				<div class="flex flex-wrap items-center gap-1 text-xs">
-					<span class="text-base-content/50">sort:</span>
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs {albumSort === 'artist' ? 'btn-active' : ''}"
-						onclick={() => setAlbumSort('artist')}
-						title="Sort alphabetically by artist"
-					>
-						artist{sortArrow('artist')}
-					</button>
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs {albumSort === 'year' ? 'btn-active' : ''}"
-						onclick={() => setAlbumSort('year')}
-						title="Sort by release year"
-					>
-						year{sortArrow('year')}
-					</button>
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs {albumSort === 'added' ? 'btn-active' : ''}"
-						onclick={() => setAlbumSort('added')}
-						title="Sort by wishlist-added date"
-					>
-						added{sortArrow('added')}
-					</button>
-					{#if selectedGenre}
-						<button
-							type="button"
-							class="btn ml-2 btn-ghost btn-xs"
-							onclick={() => (selectedGenre = null)}
-						>
-							Clear filter
-						</button>
-					{/if}
-				</div>
-			</div>
-
-			<ul class="divide-y divide-base-300/60">
-				{#each visibleAlbums as album (album.url)}
-					{@const addedDisplay = formatWishlistDate(album.dateAdded)}
-					<li class="group transition-colors duration-150 hover:bg-base-300/40">
-						<div class="flex items-center gap-3 px-4 pt-3">
-							<a
-								href="/album/{album.id}"
-								class="flex min-w-0 flex-1 items-center gap-3"
-								title="Open local detail page"
-							>
-								<span
-									class="relative block h-11 w-11 shrink-0 overflow-hidden rounded bg-base-300/40 shadow-sm transition-transform group-hover:scale-[1.02]"
-									aria-hidden="true"
-								>
-									<span
-										class="absolute inset-0 flex items-center justify-center text-base text-base-content/30"
-									>
-										♪
-									</span>
-									{#if album.coverUrl}
-										<img
-											src={album.coverUrl}
-											alt=""
-											loading="lazy"
-											decoding="async"
-											referrerpolicy="no-referrer"
-											class="relative h-full w-full object-cover"
-										/>
-									{/if}
-								</span>
-								<span class="min-w-0 flex-1">
-									<span class="block truncate text-sm font-medium sm:text-[0.95rem]">
-										<span class="text-base-content/90">{album.artist}</span>
-										<span class="text-base-content/40"> — </span>
-										<span class="text-base-content italic">{album.title}</span>
-										{#if album.year}
-											<span class="ml-1 text-base-content/50">({album.year})</span>
-										{/if}
-										{#if typeof album.rymRating === 'number'}
-											<span class="ml-1 text-xs text-base-content/55" title="RYM average rating">
-												· ★ {album.rymRating.toFixed(2)}
-											</span>
-										{/if}
-										{#if typeof album.myRating === 'number'}
-											<span class="ml-1 text-xs font-medium text-primary/80" title="Your rating">
-												· you {album.myRating}
-											</span>
-										{/if}
-										{#if addedDisplay}
-											<span class="ml-1 text-xs text-base-content/40">
-												· added {addedDisplay}
-											</span>
-										{/if}
-									</span>
-								</span>
-							</a>
-							<a
-								href={album.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="shrink-0 self-center text-xs text-base-content/30 transition group-hover:text-primary/70 hover:text-primary"
-								aria-label="Open on Rate Your Music"
-								title="Open on Rate Your Music"
-							>
-								↗
-							</a>
-						</div>
-						<div class="flex flex-wrap gap-1 px-4 pb-3 pl-17">
-							{#each album.genres as g (g)}
-								<button
-									type="button"
-									class="badge badge-ghost badge-xs transition hover:badge-primary"
-									onclick={() => selectGenre(g)}
-								>
-									{g}
-								</button>
-							{/each}
-						</div>
-					</li>
-				{:else}
-					<li class="px-4 py-10 text-center text-sm text-base-content/50">
-						No albums to show yet.
-					</li>
-				{/each}
-			</ul>
+		<!-- Right panel slot -->
+		<section class="min-w-0 flex-1">
+			{@render children()}
 		</section>
 	</main>
 
 	<footer class="border-t border-base-300/60 py-3 text-center text-xs text-base-content/40">
-		local-only · JSON-backed · import saved RYM HTML to populate
+		local-only · JSON-backed · click an album to see details
 	</footer>
 </div>
 
-<!-- Finish Full Sync confirmation modal -->
+<!-- Finish Full Sync confirmation modal (sync state is on layout, so the modal lives here too) -->
 {#if finishModalOpen && sync}
 	<div
 		class="fixed inset-0 z-30 flex items-center justify-center bg-base-300/70 backdrop-blur-sm"
@@ -648,9 +456,9 @@
 					<div class="font-semibold">
 						{sync.preview.removed}
 						{#if sync.preview.removed > 0}
-							<span class="text-xs font-normal text-base-content/60"
-								>({sync.preview.removalPct}%)</span
-							>
+							<span class="text-xs font-normal text-base-content/60">
+								({sync.preview.removalPct}%)
+							</span>
 						{/if}
 					</div>
 				</div>
@@ -679,16 +487,12 @@
 			{/if}
 
 			<div class="flex flex-wrap items-center justify-end gap-2">
-				<button
-					type="button"
-					class="btn btn-ghost btn-sm"
-					onclick={() => (finishModalOpen = false)}
+				<button type="button" class="btn btn-ghost btn-sm" onclick={() => (finishModalOpen = false)}
+					>Back</button
 				>
-					Back
-				</button>
 				<form
 					method="POST"
-					action="?/finishSync"
+					action="/?/finishSync"
 					class="contents"
 					use:enhance={() => {
 						return async ({ update }) => {

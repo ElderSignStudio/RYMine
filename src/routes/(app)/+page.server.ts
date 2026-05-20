@@ -1,29 +1,21 @@
 import { fail } from '@sveltejs/kit';
 import { processImport } from '$lib/server/import';
 import { parseWishlistHtml } from '$lib/server/parseWishlistHtml';
-import { loadWishlistData } from '$lib/server/wishlist';
 import { readWishlistFile } from '$lib/server/wishlistStore';
 import {
 	computePreview,
 	deleteSyncSession,
 	finalizeSyncSession,
 	readSyncSession,
-	startSyncSession,
-	type SyncSession,
-	type SyncPreview
+	startSyncSession
 } from '$lib/server/syncStore';
 import type { WishlistFile } from '$lib/server/wishlistStore';
 import { writeWishlistFile } from '$lib/server/wishlistStore';
-import type { Actions, PageServerLoad } from './$types';
+import type { Actions } from './$types';
 
-export const load: PageServerLoad = async () => {
-	const wishlist = await loadWishlistData();
-	const session = await readSyncSession();
-	const syncSession: (SyncSession & { preview: SyncPreview }) | null = session
-		? { ...session, preview: computePreview(session, wishlist.albums) }
-		: null;
-	return { ...wishlist, syncSession };
-};
+// All page data (albums, sync session, …) is loaded by the (app) layout.
+// This route only owns the form actions for the home page (which are also
+// reachable from sibling routes via `action="/?/<name>"`).
 
 export const actions: Actions = {
 	import: async ({ request }) => {
