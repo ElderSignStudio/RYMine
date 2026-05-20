@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Bookmarklets · RYMScraper</title>
+	<title>Bookmarklets · RYMine</title>
 </svelte:head>
 
 <div class="flex min-h-screen flex-col bg-base-100 text-base-content">
@@ -53,7 +53,7 @@
 						draggable="true"
 						class="btn shadow-sm transition btn-primary hover:-translate-y-0.5 hover:shadow-md"
 					>
-						📥 RYMScraper Import
+						📥 RYMine Import
 					</a>
 					<span class="text-xs text-base-content/50">
 						(if your browser hides the bookmarks bar, enable it first:
@@ -79,7 +79,7 @@
 							>https://rateyourmusic.com/collection/&lt;you&gt;/wishlist</code
 						>.
 					</li>
-					<li>Click <em>RYMScraper Import</em>.</li>
+					<li>Click <em>RYMine Import</em>.</li>
 					<li>
 						New albums show up locally. Existing albums get their date / cover quietly refreshed.
 						Albums you removed on RYM <strong>stay</strong> until you do a Full Sync.
@@ -161,7 +161,7 @@
 						draggable="true"
 						class="btn shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
 					>
-						✨ RYMScraper Enrich Album
+						✨ RYMine Enrich Album
 					</a>
 					<span class="text-xs text-base-content/50">Only runs on rateyourmusic.com/release/…</span>
 				</div>
@@ -178,7 +178,7 @@
 							>https://rateyourmusic.com/release/album/&lt;artist&gt;/&lt;slug&gt;/</code
 						>).
 					</li>
-					<li>Click <em>RYMScraper Enrich Album</em>.</li>
+					<li>Click <em>RYMine Enrich Album</em>.</li>
 					<li>
 						The alert tells you which fields were updated. Existing wishlist-row data (genres,
 						dates, the small cover) is preserved — the enrichment fields live in their own slots.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RYMScraper local launcher. Double-click in Finder to run.
+# RYMine local launcher. Double-click in Finder to run.
 # (Right-click → Open the first time so macOS Gatekeeper lets it through.)
 
 set -e
@@ -15,7 +15,7 @@ ORIGIN="${RYMSCRAPER_ORIGIN:-$URL}"
 clear 2>/dev/null || true
 cat <<'BANNER'
   ┌──────────────────────────┐
-  │       RYMScraper         │
+  │         RYMine           │
   └──────────────────────────┘
 BANNER
 echo

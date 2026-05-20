@@ -7,7 +7,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>RYMScraper</title>
+	<title>RYMine</title>
 </svelte:head>
 
 {@render children()}

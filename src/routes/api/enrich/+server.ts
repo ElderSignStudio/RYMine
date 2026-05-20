@@ -41,7 +41,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			{
 				ok: false,
 				error:
-					'Local wishlist is empty. Import your wishlist first (click the RYMScraper Import bookmarklet on each wishlist page).'
+					'Local wishlist is empty. Import your wishlist first (click the RYMine Import bookmarklet on each wishlist page).'
 			},
 			{ status: 404, headers: CORS_HEADERS }
 		);

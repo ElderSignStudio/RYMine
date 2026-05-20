@@ -40,7 +40,7 @@
 </script>
 
 <svelte:head>
-	<title>{album.artist} — {album.title} · RYMScraper</title>
+	<title>{album.artist} — {album.title} · RYMine</title>
 </svelte:head>
 
 <article class="card overflow-hidden border border-base-300/70 bg-base-200/40 shadow-sm">
@@ -250,8 +250,8 @@
 		>
 			<span>
 				This album hasn't been enriched yet. Open it on RYM (button above) and click the
-				<strong>✨ RYMScraper Enrich Album</strong> bookmarklet on that page. When you come back, this
-				panel refreshes automatically.
+				<strong>✨ RYMine Enrich Album</strong> bookmarklet on that page. When you come back, this panel
+				refreshes automatically.
 			</span>
 		</div>
 	{/if}

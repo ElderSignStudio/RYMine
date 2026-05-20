@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>Enrichment queue · RYMScraper</title>
+	<title>Enrichment queue · RYMine</title>
 </svelte:head>
 
 <div class="flex min-h-screen flex-col bg-base-100 text-base-content">
@@ -71,7 +71,7 @@
 					Click <em>Open next unenriched album on RYM</em> — it opens the next album in a new tab.
 				</li>
 				<li>
-					On that RYM page, click your <strong>✨ RYMScraper Enrich Album</strong> bookmarklet.
+					On that RYM page, click your <strong>✨ RYMine Enrich Album</strong> bookmarklet.
 				</li>
 				<li>
 					Switch back to this tab. It auto-refreshes on focus; that album drops off the queue.

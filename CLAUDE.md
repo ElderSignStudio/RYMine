@@ -6,11 +6,11 @@
 
 ---
 
-# RYMScraper — Claude Code Guidelines
+# RYMine — Claude Code Guidelines
 
 ## Project Overview
 
-RYMScraper is a personal local-only utility app for organizing and exploring my Rate Your Music wishlist by genre.
+RYMine is a personal local-only utility app for organizing and exploring my Rate Your Music wishlist by genre.
 
 The core UX goal is:
 

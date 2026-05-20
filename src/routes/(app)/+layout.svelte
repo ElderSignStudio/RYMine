@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll, goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { formatLastScraped, genreCounts } from '$lib/genres';
+	import { albumHasGenre, descriptorCounts, formatLastScraped, genreCounts } from '$lib/genres';
 	import { uiState } from '$lib/uiState.svelte';
 	import type { LayoutData } from './$types';
 
@@ -21,6 +21,16 @@
 
 	const allGenres = $derived(genreCounts(data.albums));
 
+	// Descriptor counts narrow to the currently-selected genre so the sidebar
+	// only offers descriptors that can actually combine with that genre. If
+	// nothing's selected, we show the full set.
+	const descriptorSourceAlbums = $derived(
+		uiState.selectedGenre
+			? data.albums.filter((a) => albumHasGenre(a, uiState.selectedGenre as string))
+			: data.albums
+	);
+	const allDescriptors = $derived(descriptorCounts(descriptorSourceAlbums));
+
 	const visibleGenres = $derived(
 		[...allGenres]
 			.sort((a, b) => {
@@ -29,6 +39,24 @@
 			})
 			.filter((g) => g.name.toLowerCase().includes(uiState.genreFilter.trim().toLowerCase()))
 	);
+
+	const visibleDescriptors = $derived.by(() => {
+		const list = [...allDescriptors];
+		// Keep the selected descriptor pinned in the list even if it has zero
+		// albums under the current genre filter — otherwise it disappears while
+		// still being selected, leaving no way to deselect from the sidebar.
+		const sel = uiState.selectedDescriptor;
+		if (sel && !list.some((d) => d.name === sel)) {
+			list.push({ name: sel, count: 0 });
+		}
+		return list
+			.sort((a, b) => {
+				if (uiState.descriptorSort === 'count')
+					return b.count - a.count || a.name.localeCompare(b.name);
+				return a.name.localeCompare(b.name);
+			})
+			.filter((d) => d.name.toLowerCase().includes(uiState.descriptorFilter.trim().toLowerCase()));
+	});
 
 	const unenrichedCount = $derived(
 		data.albums.filter(
@@ -54,6 +82,16 @@
 		uiState.selectedGenre = uiState.selectedGenre === name ? null : name;
 		// If we're not on the album list, jump to it so the filter takes effect.
 		if (page.url.pathname !== '/') await goto('/');
+	}
+
+	async function selectDescriptor(name: string) {
+		uiState.selectedDescriptor = uiState.selectedDescriptor === name ? null : name;
+		if (page.url.pathname !== '/') await goto('/');
+	}
+
+	function clearAllFilters() {
+		uiState.selectedGenre = null;
+		uiState.selectedDescriptor = null;
 	}
 
 	function pickFiles() {
@@ -97,10 +135,26 @@
 		class="sticky top-0 z-20 border-b border-base-300/70 bg-base-200/80 backdrop-blur supports-backdrop-filter:bg-base-200/60"
 	>
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
-			<a href="/" class="flex items-center gap-2" title="Back to album list">
-				<span class="text-2xl" aria-hidden="true">🎚️</span>
+			<a href="/" class="flex items-center gap-3" title="Back to album list">
+				<span
+					class="relative block h-10 w-10 shrink-0 overflow-hidden rounded-md bg-base-300/40 shadow-sm"
+				>
+					<span
+						class="absolute inset-0 flex items-center justify-center text-xl text-base-content/40"
+						aria-hidden="true"
+					>
+						⛏
+					</span>
+					<img
+						src="/RYMine%20Icon.png"
+						alt=""
+						class="relative h-full w-full object-cover"
+						loading="eager"
+						decoding="async"
+					/>
+				</span>
 				<div class="leading-tight">
-					<h1 class="text-lg font-semibold tracking-tight sm:text-xl">RYMScraper</h1>
+					<h1 class="text-lg font-semibold tracking-tight sm:text-xl">RYMine</h1>
 					<p class="hidden text-xs text-base-content/60 sm:block">
 						a cozy little wishlist, sorted by mood
 					</p>
@@ -322,82 +376,186 @@
 	<!-- Main two-pane layout: sidebar + right panel slot -->
 	<main class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row">
 		<aside
-			class="scrollbar-soft card w-full shrink-0 overflow-hidden border border-base-300/70 bg-base-200/60 shadow-sm lg:sticky lg:top-21 lg:max-h-[calc(100vh-6.5rem)] lg:w-72"
+			class="scrollbar-soft card flex w-full shrink-0 flex-col overflow-hidden border border-base-300/70 bg-base-200/60 shadow-sm lg:sticky lg:top-21 lg:max-h-[calc(100vh-6.5rem)] lg:w-72"
 		>
-			<div class="border-b border-base-300/70 p-4">
-				<div class="mb-2 flex items-baseline justify-between">
-					<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
-						Genres
-					</h2>
-					<span class="text-xs text-base-content/50">{allGenres.length} total</span>
-				</div>
-				<div class="mb-2 flex items-center gap-1 text-xs">
-					<span class="text-base-content/50">sort:</span>
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs {uiState.genreSort === 'name' ? 'btn-active' : ''}"
-						onclick={() => (uiState.genreSort = 'name')}
-						title="Alphabetical"
-					>
-						A–Z
-					</button>
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs {uiState.genreSort === 'count' ? 'btn-active' : ''}"
-						onclick={() => (uiState.genreSort = 'count')}
-						title="By album count, highest first"
-					>
-						count
-					</button>
-				</div>
-				<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						class="h-4 w-4 opacity-60"
-						aria-hidden="true"
-					>
-						<circle cx="11" cy="11" r="7" />
-						<path d="m21 21-4.3-4.3" />
-					</svg>
-					<input
-						type="text"
-						bind:value={uiState.genreFilter}
-						placeholder="Filter genres…"
-						class="grow bg-transparent outline-none"
-						aria-label="Filter genres"
-					/>
-				</label>
-			</div>
-
-			<ul class="scrollbar-soft max-h-[60vh] overflow-y-auto p-2 lg:max-h-none">
-				{#each visibleGenres as genre (genre.name)}
-					<li>
+			<!-- Genres section -->
+			<div class="flex min-h-0 flex-col">
+				<div class="border-b border-base-300/70 p-4">
+					<div class="mb-2 flex items-baseline justify-between">
+						<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
+							Genres
+						</h2>
+						<span class="text-xs text-base-content/50">{allGenres.length} total</span>
+					</div>
+					<div class="mb-2 flex items-center gap-1 text-xs">
+						<span class="text-base-content/50">sort:</span>
 						<button
 							type="button"
-							onclick={() => selectGenre(genre.name)}
-							class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150
-								hover:bg-base-300/60
-								{uiState.selectedGenre === genre.name
-								? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
-								: ''}"
+							class="btn btn-ghost btn-xs {uiState.genreSort === 'name' ? 'btn-active' : ''}"
+							onclick={() => (uiState.genreSort = 'name')}
+							title="Alphabetical"
 						>
-							<span class="truncate font-medium">{genre.name}</span>
-							<span
-								class="badge badge-ghost badge-sm transition group-hover:badge-neutral"
-								aria-label="{genre.count} albums"
-							>
-								{genre.count}
-							</span>
+							A–Z
 						</button>
-					</li>
-				{:else}
-					<li class="px-3 py-6 text-center text-sm text-base-content/50">No genres match.</li>
-				{/each}
-			</ul>
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs {uiState.genreSort === 'count' ? 'btn-active' : ''}"
+							onclick={() => (uiState.genreSort = 'count')}
+							title="By album count, highest first"
+						>
+							count
+						</button>
+					</div>
+					<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							class="h-4 w-4 opacity-60"
+							aria-hidden="true"
+						>
+							<circle cx="11" cy="11" r="7" />
+							<path d="m21 21-4.3-4.3" />
+						</svg>
+						<input
+							type="text"
+							bind:value={uiState.genreFilter}
+							placeholder="Filter genres…"
+							class="grow bg-transparent outline-none"
+							aria-label="Filter genres"
+						/>
+					</label>
+				</div>
+
+				<ul class="scrollbar-soft max-h-[35vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[36vh]">
+					{#each visibleGenres as genre (genre.name)}
+						<li>
+							<button
+								type="button"
+								onclick={() => selectGenre(genre.name)}
+								class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150
+									hover:bg-base-300/60
+									{uiState.selectedGenre === genre.name
+									? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
+									: ''}"
+							>
+								<span class="truncate font-medium">{genre.name}</span>
+								<span
+									class="badge badge-ghost badge-sm transition group-hover:badge-neutral"
+									aria-label="{genre.count} albums"
+								>
+									{genre.count}
+								</span>
+							</button>
+						</li>
+					{:else}
+						<li class="px-3 py-6 text-center text-sm text-base-content/50">No genres match.</li>
+					{/each}
+				</ul>
+			</div>
+
+			<!-- Descriptors section -->
+			<div class="flex min-h-0 flex-col border-t border-base-300/70">
+				<div class="border-b border-base-300/70 p-4">
+					<div class="mb-2 flex items-baseline justify-between">
+						<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
+							Descriptors
+						</h2>
+						<span
+							class="text-xs text-base-content/50"
+							title={uiState.selectedGenre ? `in "${uiState.selectedGenre}"` : 'across all albums'}
+						>
+							{allDescriptors.length}
+							{uiState.selectedGenre ? 'here' : 'total'}
+						</span>
+					</div>
+					<div class="mb-2 flex items-center gap-1 text-xs">
+						<span class="text-base-content/50">sort:</span>
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs {uiState.descriptorSort === 'name' ? 'btn-active' : ''}"
+							onclick={() => (uiState.descriptorSort = 'name')}
+							title="Alphabetical"
+						>
+							A–Z
+						</button>
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs {uiState.descriptorSort === 'count' ? 'btn-active' : ''}"
+							onclick={() => (uiState.descriptorSort = 'count')}
+							title="By album count, highest first"
+						>
+							count
+						</button>
+					</div>
+					<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							class="h-4 w-4 opacity-60"
+							aria-hidden="true"
+						>
+							<circle cx="11" cy="11" r="7" />
+							<path d="m21 21-4.3-4.3" />
+						</svg>
+						<input
+							type="text"
+							bind:value={uiState.descriptorFilter}
+							placeholder="Filter descriptors…"
+							class="grow bg-transparent outline-none"
+							aria-label="Filter descriptors"
+						/>
+					</label>
+				</div>
+
+				<ul class="scrollbar-soft max-h-[35vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[36vh]">
+					{#each visibleDescriptors as descriptor (descriptor.name)}
+						<li>
+							<button
+								type="button"
+								onclick={() => selectDescriptor(descriptor.name)}
+								class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs italic transition-colors duration-150
+									hover:bg-base-300/60
+									{uiState.selectedDescriptor === descriptor.name
+									? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
+									: ''}"
+							>
+								<span class="truncate">{descriptor.name}</span>
+								<span
+									class="badge badge-ghost badge-xs not-italic transition group-hover:badge-neutral"
+									aria-label="{descriptor.count} albums"
+								>
+									{descriptor.count}
+								</span>
+							</button>
+						</li>
+					{:else}
+						<li class="px-3 py-6 text-center text-xs text-base-content/50">
+							{allDescriptors.length === 0
+								? 'Run the Enrich Album bookmarklet on a release page to start collecting descriptors.'
+								: 'No descriptors match.'}
+						</li>
+					{/each}
+				</ul>
+			</div>
+
+			{#if uiState.selectedGenre || uiState.selectedDescriptor}
+				<div class="border-t border-base-300/70 bg-base-200/40 px-3 py-2">
+					<button
+						type="button"
+						class="btn w-full btn-ghost btn-xs"
+						onclick={clearAllFilters}
+						title="Clear genre and descriptor filters"
+					>
+						Clear filters
+					</button>
+				</div>
+			{/if}
 		</aside>
 
 		<!-- Right panel slot -->

@@ -1,5 +1,5 @@
 /**
- * Builds the JS source for the "RYMScraper Import" bookmarklet.
+ * Builds the JS source for the "RYMine Import" bookmarklet.
  *
  * This code runs inside the user's real, logged-in RYM browser tab. It mirrors
  * the selector + extraction strategy from `parseWishlistHtml.ts` so behaviour
@@ -13,7 +13,7 @@ var RELEASE=/\\/release\\/(album|ep|single|compilation|mixtape|video|dj-mix|boot
 var MONTHS={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
 function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}
 function parseDate(s){if(!s)return undefined;var m=s.match(/\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\W*(\\d{1,2})\\W*(\\d{4})\\b/);if(!m)return undefined;return m[3]+'-'+MONTHS[m[1]]+'-'+(m[2].length===1?'0'+m[2]:m[2]);}
-if(!/^https?:\\/\\/(?:www\\.)?rateyourmusic\\.com\\//i.test(location.href)){alert('RYMScraper: open this on a rateyourmusic.com wishlist page first.');return;}
+if(!/^https?:\\/\\/(?:www\\.)?rateyourmusic\\.com\\//i.test(location.href)){alert('RYMine: open this on a rateyourmusic.com wishlist page first.');return;}
 var found=new Map();
 document.querySelectorAll('a[href*="/release/"]').forEach(function(link){
 var href=link.getAttribute('href');
@@ -65,10 +65,10 @@ if(imgEl){var src=imgEl.getAttribute('src');if(src){try{var u=new URL(src,locati
 found.set(url,{url:url,title:title,artist:artist,year:year,dateAdded:dateAdded,coverUrl:coverUrl,genres:genres});
 });
 var albums=Array.from(found.values());
-if(!albums.length){alert('RYMScraper: no albums detected on this page. Are you on a wishlist?');return;}
+if(!albums.length){alert('RYMine: no albums detected on this page. Are you on a wishlist?');return;}
 fetch(ENDPOINT,{method:'POST',mode:'cors',headers:{'content-type':'application/json'},body:JSON.stringify({albums:albums,sourceUrl:location.href})}).then(function(r){return r.json().then(function(b){return{s:r.status,b:b};});}).then(function(o){
 if(o.s>=200&&o.s<300&&o.b&&o.b.ok){
-var msg='RYMScraper: imported '+o.b.added+' new, '+o.b.duplicates+' duplicate';
+var msg='RYMine: imported '+o.b.added+' new, '+o.b.duplicates+' duplicate';
 if(o.b.datesRefreshed){msg+=', '+o.b.datesRefreshed+' date'+(o.b.datesRefreshed===1?'':'s')+' refreshed';}
 if(o.b.coversRefreshed){msg+=', '+o.b.coversRefreshed+' cover'+(o.b.coversRefreshed===1?'':'s')+' refreshed';}
 if(o.b.artistsRefreshed){msg+=', '+o.b.artistsRefreshed+' artist'+(o.b.artistsRefreshed===1?'':'s')+' refreshed';}
@@ -76,8 +76,8 @@ msg+=' (total '+o.b.total+').';
 if(o.b.sync&&o.b.sync.active){msg+=' [sync: page '+o.b.sync.pageCount+', '+o.b.sync.totalSeen+' albums seen]';}
 alert(msg);
 }
-else{alert('RYMScraper error: '+((o.b&&o.b.error)||('HTTP '+o.s)));}
-}).catch(function(){alert('RYMScraper: could not reach the local app at '+ENDPOINT+'. Is \`npm run dev\` running?');});
+else{alert('RYMine error: '+((o.b&&o.b.error)||('HTTP '+o.s)));}
+}).catch(function(){alert('RYMine: could not reach the local app at '+ENDPOINT+'. Is \`npm run dev\` running?');});
 })();`;
 }
 
@@ -104,7 +104,7 @@ export function buildEnrichBookmarkletSource(endpoint: string): string {
 var ENDPOINT=${endpointJson};
 function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}
 function num(s){if(s==null)return undefined;var n=parseFloat(String(s).replace(/[^0-9.]/g,''));return isNaN(n)?undefined:n;}
-if(!/^https?:\\/\\/(?:www\\.)?rateyourmusic\\.com\\/release\\//i.test(location.href)){alert('RYMScraper Enrich: open a rateyourmusic.com release/album page first.');return;}
+if(!/^https?:\\/\\/(?:www\\.)?rateyourmusic\\.com\\/release\\//i.test(location.href)){alert('RYMine Enrich: open a rateyourmusic.com release/album page first.');return;}
 
 // Large cover: prefer og:image (most stable), fall back to known cover containers.
 var largeCoverUrl;
@@ -231,10 +231,10 @@ fetch(ENDPOINT,{method:'POST',mode:'cors',headers:{'content-type':'application/j
 if(o.s>=200&&o.s<300&&o.b&&o.b.ok){
 var fu=o.b.fieldsUpdated||[];
 var who=(o.b.artist||'?')+' — '+(o.b.title||'?');
-alert('RYMScraper enriched: '+who+(fu.length?' ['+fu.join(', ')+']':' (no changes).'));
-}else if(o.s===404){alert('RYMScraper enrich: '+((o.b&&o.b.error)||'Album not found in local wishlist.'));}
-else{alert('RYMScraper enrich error: '+((o.b&&o.b.error)||('HTTP '+o.s)));}
-}).catch(function(){alert('RYMScraper enrich: could not reach the local app at '+ENDPOINT+'. Is the server running?');});
+alert('RYMine enriched: '+who+(fu.length?' ['+fu.join(', ')+']':' (no changes).'));
+}else if(o.s===404){alert('RYMine enrich: '+((o.b&&o.b.error)||'Album not found in local wishlist.'));}
+else{alert('RYMine enrich error: '+((o.b&&o.b.error)||('HTTP '+o.s)));}
+}).catch(function(){alert('RYMine enrich: could not reach the local app at '+ENDPOINT+'. Is the server running?');});
 })();`;
 }
 

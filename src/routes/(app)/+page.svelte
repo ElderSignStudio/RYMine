@@ -1,31 +1,39 @@
 <script lang="ts">
 	import { formatWishlistDate } from '$lib/dates';
+	import { albumHasDescriptor, albumHasGenre } from '$lib/genres';
 	import { uiState } from '$lib/uiState.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	// Album-list-only sort state. Genre filter state lives on the shared
-	// uiState singleton so the sidebar in the layout drives it.
-	let albumSort = $state<'artist' | 'year' | 'added'>('artist');
+	// Album-list-only sort state. Genre / descriptor filter state lives on
+	// the shared uiState singleton so the sidebar drives it.
+	type AlbumSort = 'artist' | 'year' | 'added' | 'rymRating' | 'myRating';
+	let albumSort = $state<AlbumSort>('artist');
 	let albumDir = $state<'asc' | 'desc'>('asc');
 
 	const visibleAlbums = $derived.by(() => {
-		const base = uiState.selectedGenre
-			? data.albums.filter((a) => a.genres.includes(uiState.selectedGenre!))
-			: data.albums;
+		const base = data.albums.filter((a) => {
+			if (uiState.selectedGenre && !albumHasGenre(a, uiState.selectedGenre)) return false;
+			if (uiState.selectedDescriptor && !albumHasDescriptor(a, uiState.selectedDescriptor))
+				return false;
+			return true;
+		});
 		const sign = albumDir === 'asc' ? 1 : -1;
+
+		function compareOptionalNumber(ax: number | undefined, bx: number | undefined): number {
+			if (ax === undefined && bx === undefined) return 0;
+			if (ax === undefined) return 1; // missing always last
+			if (bx === undefined) return -1;
+			return sign * (ax - bx);
+		}
+
 		const sorted = [...base].sort((a, b) => {
 			if (albumSort === 'artist') return sign * a.artist.localeCompare(b.artist);
-			if (albumSort === 'year') {
-				const ay = a.year;
-				const by = b.year;
-				if (ay === undefined && by === undefined) return 0;
-				if (ay === undefined) return 1; // missing always last
-				if (by === undefined) return -1;
-				return sign * (ay - by);
-			}
-			// 'added'
+			if (albumSort === 'year') return compareOptionalNumber(a.year, b.year);
+			if (albumSort === 'rymRating') return compareOptionalNumber(a.rymRating, b.rymRating);
+			if (albumSort === 'myRating') return compareOptionalNumber(a.myRating, b.myRating);
+			// 'added' — ISO strings sort lexicographically == chronologically
 			const ad = a.dateAdded ?? '';
 			const bd = b.dateAdded ?? '';
 			if (!ad && !bd) return 0;
@@ -36,18 +44,36 @@
 		return sorted;
 	});
 
-	function setAlbumSort(mode: 'artist' | 'year' | 'added') {
+	function setAlbumSort(mode: AlbumSort) {
 		if (albumSort === mode) {
 			albumDir = albumDir === 'asc' ? 'desc' : 'asc';
 		} else {
 			albumSort = mode;
+			// Sensible defaults: A→Z for artist, but newer/higher first for the rest.
 			albumDir = mode === 'artist' ? 'asc' : 'desc';
 		}
 	}
 
-	function sortArrow(mode: 'artist' | 'year' | 'added'): string {
+	function sortArrow(mode: AlbumSort): string {
 		if (albumSort !== mode) return '';
 		return albumDir === 'asc' ? ' ↑' : ' ↓';
+	}
+
+	// Per-album visible genre split: prefer detail-page primary/secondary
+	// (richer signal) and fall back to the flat wishlist-row list for albums
+	// that haven't been enriched yet.
+	function rowGenres(a: PageData['albums'][number]): { primary: string[]; secondary: string[] } {
+		const hasEnrichedSplit =
+			(a.primaryGenres && a.primaryGenres.length > 0) ||
+			(a.secondaryGenres && a.secondaryGenres.length > 0);
+		if (hasEnrichedSplit) {
+			const primary = a.primaryGenres ?? [];
+			// Secondary list minus anything already shown as primary to avoid duplicates.
+			const primarySet = new Set(primary);
+			const secondary = (a.secondaryGenres ?? []).filter((g) => !primarySet.has(g));
+			return { primary, secondary };
+		}
+		return { primary: a.genres ?? [], secondary: [] };
 	}
 </script>
 
@@ -89,11 +115,30 @@
 			>
 				added{sortArrow('added')}
 			</button>
-			{#if uiState.selectedGenre}
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs {albumSort === 'rymRating' ? 'btn-active' : ''}"
+				onclick={() => setAlbumSort('rymRating')}
+				title="Sort by RYM average rating"
+			>
+				avg ★{sortArrow('rymRating')}
+			</button>
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs {albumSort === 'myRating' ? 'btn-active' : ''}"
+				onclick={() => setAlbumSort('myRating')}
+				title="Sort by your rating (unrated last)"
+			>
+				you ★{sortArrow('myRating')}
+			</button>
+			{#if uiState.selectedGenre || uiState.selectedDescriptor}
 				<button
 					type="button"
 					class="btn ml-2 btn-ghost btn-xs"
-					onclick={() => (uiState.selectedGenre = null)}
+					onclick={() => {
+						uiState.selectedGenre = null;
+						uiState.selectedDescriptor = null;
+					}}
 				>
 					Clear filter
 				</button>
@@ -104,6 +149,7 @@
 	<ul class="divide-y divide-base-300/60">
 		{#each visibleAlbums as album (album.url)}
 			{@const addedDisplay = formatWishlistDate(album.dateAdded)}
+			{@const split = rowGenres(album)}
 			<li class="group transition-colors duration-150 hover:bg-base-300/40">
 				<div class="flex items-center gap-3 px-4 pt-3">
 					<a
@@ -112,11 +158,11 @@
 						title="Open local detail panel"
 					>
 						<span
-							class="relative block h-11 w-11 shrink-0 overflow-hidden rounded bg-base-300/40 shadow-sm transition-transform group-hover:scale-[1.02]"
+							class="relative block h-16 w-16 shrink-0 overflow-hidden rounded bg-base-300/40 shadow-sm transition-transform group-hover:scale-[1.02]"
 							aria-hidden="true"
 						>
 							<span
-								class="absolute inset-0 flex items-center justify-center text-base text-base-content/30"
+								class="absolute inset-0 flex items-center justify-center text-xl text-base-content/30"
 							>
 								♪
 							</span>
@@ -166,11 +212,20 @@
 						↗
 					</a>
 				</div>
-				<div class="flex flex-wrap gap-1 px-4 pb-3 pl-17">
-					{#each album.genres as g (g)}
+				<div class="flex flex-wrap items-center gap-1 px-4 pb-3 pl-23">
+					{#each split.primary as g (g)}
 						<button
 							type="button"
-							class="badge badge-ghost badge-xs transition hover:badge-primary"
+							class="badge badge-xs transition badge-neutral hover:badge-primary"
+							onclick={() => (uiState.selectedGenre = uiState.selectedGenre === g ? null : g)}
+						>
+							{g}
+						</button>
+					{/each}
+					{#each split.secondary as g (g)}
+						<button
+							type="button"
+							class="badge badge-ghost badge-xs italic opacity-60 transition hover:opacity-100 hover:badge-primary"
 							onclick={() => (uiState.selectedGenre = uiState.selectedGenre === g ? null : g)}
 						>
 							{g}
