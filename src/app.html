@@ -1,14 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="coffee">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// Apply persisted theme before first paint to avoid a flash.
+			// Mirror the THEMES list in src/lib/theme.svelte.ts.
+			try {
+				var t = localStorage.getItem('rymine.theme');
+				if (t && ['coffee', 'dim', 'night', 'luxury', 'forest'].indexOf(t) !== -1) {
+					document.documentElement.setAttribute('data-theme', t);
+				}
+			} catch (e) {
+				/* localStorage blocked — fall through to default theme */
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body
 		data-sveltekit-preload-data="hover"
-		data-theme="coffee"
 		class="min-h-screen bg-base-100 text-base-content antialiased"
 	>
 		<div style="display: contents">%sveltekit.body%</div>

@@ -3,7 +3,10 @@
 @plugin 'daisyui' {
 	themes:
 		coffee --default,
-		dim --prefersdark;
+		dim,
+		night,
+		luxury,
+		forest;
 }
 
 /* App-wide niceness */

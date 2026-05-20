@@ -3,6 +3,7 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { albumHasGenre, descriptorCounts, formatLastScraped, genreCounts } from '$lib/genres';
+	import { DEFAULT_THEME, THEMES, THEME_BLURBS, themeStore, type Theme } from '$lib/theme.svelte';
 	import { uiState } from '$lib/uiState.svelte';
 	import type { LayoutData } from './$types';
 
@@ -121,6 +122,18 @@
 		return () => clearInterval(id);
 	});
 
+	function pickTheme(next: Theme) {
+		themeStore.set(next);
+		// Close the DaisyUI dropdown (focus-within based) by blurring the
+		// currently-focused element so the user lands back in the page flow.
+		(document.activeElement as HTMLElement | null)?.blur();
+	}
+
+	function resetTheme() {
+		themeStore.reset();
+		(document.activeElement as HTMLElement | null)?.blur();
+	}
+
 	async function openFinishModal() {
 		refreshing = true;
 		await invalidateAll();
@@ -188,6 +201,82 @@
 						</button>
 					</form>
 				{/if}
+
+				<!-- Theme picker -->
+				<div class="dropdown dropdown-end">
+					<div
+						tabindex="0"
+						role="button"
+						aria-label="Change theme"
+						title="Change theme · current: {themeStore.current}"
+						class="btn gap-1.5 btn-ghost transition btn-sm hover:-translate-y-0.5"
+					>
+						<span
+							class="inline-flex h-4 w-4 overflow-hidden rounded-sm ring-1 ring-base-content/15"
+							aria-hidden="true"
+						>
+							<span class="flex-1 bg-base-100"></span>
+							<span class="flex-1 bg-base-300"></span>
+							<span class="flex-1 bg-primary"></span>
+						</span>
+						<span class="hidden sm:inline">Theme</span>
+					</div>
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+					<div
+						tabindex="0"
+						class="dropdown-content z-30 mt-2 w-64 rounded-box border border-base-300/70 bg-base-200 p-2 shadow-lg"
+					>
+						<p class="px-2 pt-1 pb-2 text-xs text-base-content/60">Pick a vibe — saved locally.</p>
+						<ul class="flex flex-col gap-1">
+							{#each THEMES as t (t)}
+								<li>
+									<button
+										type="button"
+										onclick={() => pickTheme(t)}
+										class="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-base-300/60 {themeStore.current ===
+										t
+											? 'bg-primary/15 ring-1 ring-primary/30'
+											: ''}"
+									>
+										<!-- Mini swatch — each scoped to its own data-theme so DaisyUI
+										     resolves its actual palette in the preview. -->
+										<span
+											data-theme={t}
+											class="flex h-7 w-10 shrink-0 overflow-hidden rounded border border-base-content/15"
+											aria-hidden="true"
+										>
+											<span class="flex-1 bg-base-100"></span>
+											<span class="flex-1 bg-base-300"></span>
+											<span class="flex-1 bg-primary"></span>
+											<span class="flex-1 bg-secondary"></span>
+										</span>
+										<span class="min-w-0 flex-1">
+											<span class="block text-sm font-medium capitalize">{t}</span>
+											<span class="block truncate text-xs text-base-content/55">
+												{THEME_BLURBS[t]}
+											</span>
+										</span>
+										{#if themeStore.current === t}
+											<span class="text-xs text-primary" aria-label="Active">●</span>
+										{/if}
+									</button>
+								</li>
+							{/each}
+						</ul>
+						{#if themeStore.current !== DEFAULT_THEME}
+							<div class="mt-2 border-t border-base-300/70 pt-2">
+								<button
+									type="button"
+									onclick={resetTheme}
+									class="btn w-full btn-ghost btn-xs"
+									title="Reset to {DEFAULT_THEME}"
+								>
+									Reset to default ({DEFAULT_THEME})
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
 
 				<a
 					href="/bookmarklet"
