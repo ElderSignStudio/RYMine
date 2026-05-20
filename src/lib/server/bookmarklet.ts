@@ -165,10 +165,45 @@ if(myRating===undefined){
   }
 }
 
+// Streaming-service links. RYM renders each one as a dedicated icon-button
+// inside .ui_media_links with a service-specific class. We use those classes
+// as the primary signal (most precise) and only fall back to a URL-pattern
+// scan SCOPED TO that container if a class is missing. We never scan the
+// whole document — that's how we used to pick up YouTube links from review
+// bodies, related-video widgets and "before/after this album" panels.
+var streamingLinks={};
+var serviceClass={spotify:'ui_media_link_btn_spotify',appleMusic:'ui_media_link_btn_applemusic',youtube:'ui_media_link_btn_youtube',bandcamp:'ui_media_link_btn_bandcamp'};
+for(var sk in serviceClass){
+  var btn=document.querySelector('a.'+serviceClass[sk]+'[href]');
+  if(btn&&btn.href)streamingLinks[sk]=btn.href;
+}
+// Backup: if a class miss happens (RYM renames something), scan ONLY inside
+// the media-links container to keep reviews / embeds out of the running.
+if(!streamingLinks.spotify||!streamingLinks.appleMusic||!streamingLinks.youtube||!streamingLinks.bandcamp){
+  var streamingScope=document.querySelector('.ui_media_links, .ui_media_links_container, [class*="media_link_container"]');
+  if(streamingScope){
+    var streamingPatterns={
+      spotify:/\\b(?:open\\.|www\\.)?spotify\\.com\\b/i,
+      appleMusic:/\\b(?:[a-z0-9-]+\\.)*(?:music|itunes)\\.apple\\.com\\b|\\bapple\\.co\\b/i,
+      youtube:/\\b(?:music\\.|www\\.|m\\.)?(?:youtube\\.com|youtu\\.be)\\b/i,
+      bandcamp:/\\b[a-z0-9-]*bandcamp\\.com\\b/i
+    };
+    var scopedAnchors=streamingScope.querySelectorAll('a[href]');
+    for(var sa=0;sa<scopedAnchors.length;sa++){
+      var h=scopedAnchors[sa].href;
+      if(!h||!/^https?:/i.test(h))continue;
+      for(var pk in streamingPatterns){
+        if(!streamingLinks[pk]&&streamingPatterns[pk].test(h))streamingLinks[pk]=h;
+      }
+    }
+  }
+}
+var hasStreaming=streamingLinks.spotify||streamingLinks.appleMusic||streamingLinks.youtube||streamingLinks.bandcamp;
+
 // Canonical URL — strip query/hash/trailing slash; server normalises again.
 var url;try{var u=new URL(location.href);u.search='';u.hash='';u.pathname=u.pathname.replace(/\\/+$/,'');url=u.toString();}catch(e){url=location.href;}
 
-var payload={url:url,largeCoverUrl:largeCoverUrl,rymRating:rymRating,primaryGenres:primaryGenres.length?primaryGenres:undefined,secondaryGenres:secondaryGenres.length?secondaryGenres:undefined,descriptors:descriptors.length?descriptors:undefined,myRating:myRating,sourceUrl:location.href};
+var payload={url:url,largeCoverUrl:largeCoverUrl,rymRating:rymRating,primaryGenres:primaryGenres.length?primaryGenres:undefined,secondaryGenres:secondaryGenres.length?secondaryGenres:undefined,descriptors:descriptors.length?descriptors:undefined,myRating:myRating,streamingLinks:hasStreaming?streamingLinks:undefined,sourceUrl:location.href};
 
 fetch(ENDPOINT,{method:'POST',mode:'cors',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json().then(function(b){return{s:r.status,b:b};});}).then(function(o){
 if(o.s>=200&&o.s<300&&o.b&&o.b.ok){

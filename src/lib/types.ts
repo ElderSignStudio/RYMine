@@ -1,3 +1,10 @@
+export type StreamingLinks = {
+	spotify?: string;
+	appleMusic?: string;
+	youtube?: string;
+	bandcamp?: string;
+};
+
 export type WishlistAlbum = {
 	artist: string;
 	title: string;
@@ -21,6 +28,7 @@ export type WishlistAlbum = {
 	secondaryGenres?: string[];
 	myRating?: number;
 	enrichedAt?: string;
+	streamingLinks?: StreamingLinks;
 };
 
 export type GenreCount = {

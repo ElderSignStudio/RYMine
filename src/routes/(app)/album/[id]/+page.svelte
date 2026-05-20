@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { formatWishlistDate } from '$lib/dates';
 	import { starString } from '$lib/stars';
+	import { STREAMING_ORDER, STREAMING_SERVICES, hasAnyStreamingLink } from '$lib/streaming';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -20,6 +21,7 @@
 	const coverSrc = $derived(album.largeCoverUrl ?? album.coverUrl);
 	const isEnriched = $derived(Boolean(album.enrichedAt));
 	const myStars = $derived(starString(album.myRating));
+	const showStreaming = $derived(hasAnyStreamingLink(album.streamingLinks));
 
 	// When the user comes back from a RYM tab after running the enrich
 	// bookmarklet, re-fetch so the new fields appear without a manual reload.
@@ -116,6 +118,36 @@
 					<span class="text-xs text-base-content/40">not rated by you</span>
 				{/if}
 			</div>
+
+			<!-- Streaming services -->
+			{#if showStreaming && album.streamingLinks}
+				<div>
+					<h2 class="mb-1 text-xs font-semibold tracking-wider text-base-content/60 uppercase">
+						Listen
+					</h2>
+					<div class="flex flex-wrap gap-2">
+						{#each STREAMING_ORDER as key (key)}
+							{@const href = album.streamingLinks[key]}
+							{#if href}
+								<a
+									{href}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="btn gap-2 border-base-300/70 transition btn-outline btn-sm hover:-translate-y-0.5 hover:bg-base-300/40"
+									title="Open on {STREAMING_SERVICES[key].label}"
+								>
+									<span
+										class="h-2 w-2 rounded-full {STREAMING_SERVICES[key].dot}"
+										aria-hidden="true"
+									></span>
+									{STREAMING_SERVICES[key].label}
+									<span class="text-xs text-base-content/40" aria-hidden="true">↗</span>
+								</a>
+							{/if}
+						{/each}
+					</div>
+				</div>
+			{/if}
 
 			{#if primaryGenres.length > 0}
 				<div>

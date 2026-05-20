@@ -1,4 +1,5 @@
-import type { WishlistAlbum } from '$lib/types';
+import { STREAMING_ORDER, type StreamingKey } from '$lib/streaming';
+import type { StreamingLinks, WishlistAlbum } from '$lib/types';
 
 /**
  * The shape the enrichment bookmarklet POSTs to `/api/enrich`.
@@ -17,8 +18,36 @@ export type EnrichmentInput = {
 	secondaryGenres?: string[];
 	descriptors?: string[];
 	myRating?: number;
+	streamingLinks?: StreamingLinks;
 	sourceUrl?: string;
 };
+
+// Per-service domain guards. Anchored on the host so a hostile payload
+// can't smuggle in arbitrary URLs under a streaming key. Subdomain prefixes
+// are allowed (RYM's Apple Music URLs go through geo.music.apple.com, for
+// example) — we just require the canonical service host as the suffix.
+const STREAMING_HOST_PATTERNS: Record<StreamingKey, RegExp> = {
+	spotify: /^https?:\/\/(?:[a-z0-9-]+\.)?spotify\.com\//i,
+	appleMusic:
+		/^https?:\/\/(?:[a-z0-9-]+\.)*(?:music|itunes)\.apple\.com\/|^https?:\/\/apple\.co\//i,
+	youtube: /^https?:\/\/(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be)\//i,
+	bandcamp: /^https?:\/\/(?:[a-z0-9-]+\.)*bandcamp\.com\//i
+};
+
+function cleanStreamingLinks(value: unknown): StreamingLinks | undefined {
+	if (!value || typeof value !== 'object') return undefined;
+	const obj = value as Record<string, unknown>;
+	const out: StreamingLinks = {};
+	for (const key of STREAMING_ORDER) {
+		const raw = obj[key];
+		if (typeof raw !== 'string') continue;
+		const trimmed = raw.trim();
+		if (STREAMING_HOST_PATTERNS[key].test(trimmed)) {
+			out[key] = trimmed;
+		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
 
 export type EnrichmentValidation =
 	| { ok: true; input: EnrichmentInput }
@@ -85,6 +114,9 @@ export function validateEnrichmentPayload(raw: unknown): EnrichmentValidation {
 	if (sec) input.secondaryGenres = sec;
 	const desc = cleanStringArray(p.descriptors);
 	if (desc) input.descriptors = desc;
+
+	const sl = cleanStreamingLinks(p.streamingLinks);
+	if (sl) input.streamingLinks = sl;
 
 	if (typeof p.sourceUrl === 'string' && p.sourceUrl.trim()) {
 		input.sourceUrl = p.sourceUrl.trim();
@@ -155,6 +187,27 @@ export function applyEnrichmentToAlbum(
 	if (typeof input.myRating === 'number' && input.myRating !== album.myRating) {
 		updated.myRating = input.myRating;
 		fieldsUpdated.push('myRating');
+	}
+
+	// Streaming links — additive merge per service. We never *clear* a
+	// previously-stored link when this run failed to find one (e.g. RYM
+	// occasionally hides icons behind a "show more" toggle); a per-service
+	// value only changes when incoming has a fresh, validated URL.
+	if (input.streamingLinks) {
+		const existing: StreamingLinks = album.streamingLinks ?? {};
+		const merged: StreamingLinks = { ...existing };
+		let changed = false;
+		for (const key of STREAMING_ORDER) {
+			const incoming = input.streamingLinks[key];
+			if (incoming && incoming !== existing[key]) {
+				merged[key] = incoming;
+				changed = true;
+			}
+		}
+		if (changed) {
+			updated.streamingLinks = merged;
+			fieldsUpdated.push('streamingLinks');
+		}
 	}
 
 	updated.enrichedAt = enrichedAt;
