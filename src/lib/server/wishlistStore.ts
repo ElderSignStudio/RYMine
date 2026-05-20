@@ -50,6 +50,7 @@ export type MergeResult = {
 	duplicates: number;
 	datesRefreshed: number;
 	coversRefreshed: number;
+	artistsRefreshed: number;
 	total: number;
 };
 
@@ -67,15 +68,22 @@ export function mergeAlbums(
 	let duplicates = 0;
 	let datesRefreshed = 0;
 	let coversRefreshed = 0;
+	let artistsRefreshed = 0;
 	for (const a of incoming) {
 		const key = normalizeUrl(a.url);
 		const prev = byUrl.get(key);
 		if (prev) {
 			duplicates += 1;
-			// Even in merge-only mode, silently refresh dateAdded / coverUrl if
-			// the bookmarklet supplied fresh values. Title/artist/year/genres are
-			// still left alone — those only update during a Full Sync.
+			// Even in merge-only mode, silently refresh dateAdded / coverUrl /
+			// artist if the bookmarklet supplied fresh values. Title / year /
+			// genres are still left alone — those only update during a Full
+			// Sync. The `artist` refresh covers multi-artist collab albums
+			// that used to be truncated to the first anchor's text.
 			let next = prev;
+			if (a.artist && a.artist !== prev.artist) {
+				next = { ...next, artist: a.artist };
+				artistsRefreshed += 1;
+			}
 			if (a.dateAdded && a.dateAdded !== prev.dateAdded) {
 				next = { ...next, dateAdded: a.dateAdded };
 				datesRefreshed += 1;
@@ -96,6 +104,13 @@ export function mergeAlbums(
 	const albums = [...byUrl.values()].sort((a, b) => a.artist.localeCompare(b.artist));
 	return {
 		albums,
-		result: { added, duplicates, datesRefreshed, coversRefreshed, total: albums.length }
+		result: {
+			added,
+			duplicates,
+			datesRefreshed,
+			coversRefreshed,
+			artistsRefreshed,
+			total: albums.length
+		}
 	};
 }

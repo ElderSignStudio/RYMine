@@ -18,6 +18,7 @@ export type ImportOutcome = {
 	duplicates: number;
 	datesRefreshed: number;
 	coversRefreshed: number;
+	artistsRefreshed: number;
 	total: number;
 	sync: ImportSyncInfo;
 };
@@ -47,6 +48,9 @@ export async function processImport(incoming: ParsedAlbum[]): Promise<ImportOutc
 			duplicates: r.updated + r.unchanged,
 			datesRefreshed: r.datesRefreshed,
 			coversRefreshed: r.coversRefreshed,
+			// In sync mode, an artist-name change shows up as an `updated` row
+			// (it's in albumsDiffer), so there's no separate refresh counter.
+			artistsRefreshed: 0,
 			total: r.total,
 			sync: {
 				active: true,
@@ -66,6 +70,7 @@ export async function processImport(incoming: ParsedAlbum[]): Promise<ImportOutc
 		duplicates: r.result.duplicates,
 		datesRefreshed: r.result.datesRefreshed,
 		coversRefreshed: r.result.coversRefreshed,
+		artistsRefreshed: r.result.artistsRefreshed,
 		total: r.result.total,
 		sync: { active: false }
 	};

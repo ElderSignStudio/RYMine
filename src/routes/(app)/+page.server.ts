@@ -74,6 +74,7 @@ export const actions: Actions = {
 			duplicates: outcome.duplicates,
 			datesRefreshed: outcome.datesRefreshed,
 			coversRefreshed: outcome.coversRefreshed,
+			artistsRefreshed: outcome.artistsRefreshed,
 			total: outcome.total,
 			syncActive: outcome.sync.active,
 			errors

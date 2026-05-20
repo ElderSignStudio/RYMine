@@ -43,6 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			duplicates: outcome.duplicates,
 			datesRefreshed: outcome.datesRefreshed,
 			coversRefreshed: outcome.coversRefreshed,
+			artistsRefreshed: outcome.artistsRefreshed,
 			total: outcome.total,
 			sync: outcome.sync,
 			sourceUrl: validation.sourceUrl

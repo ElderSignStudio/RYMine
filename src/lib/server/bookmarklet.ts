@@ -24,8 +24,29 @@ var title=norm(link.textContent);
 if(!title)return;
 var row=link.closest('tr, li, .collection_table_row, .release_list_item, .ui_list_main_item')||link.parentElement;
 if(!row)return;
-var artistEl=row.querySelector('a[href*="/artist/"]');
-var artist=artistEl?norm(artistEl.textContent):'';
+// Artist(s) — walk .or_q_albumartist children up to (but not including) the
+// <i> that wraps the album title. That gives us "Artist1 & Artist2, Artist3"
+// with whatever separators RYM rendered between the artist anchors, instead
+// of only the first <a class="artist">'s text.
+var artist='';
+var artistWrap=row.querySelector('.or_q_albumartist');
+if(artistWrap){
+  var artistParts=[];
+  for(var an=artistWrap.firstChild;an;an=an.nextSibling){
+    if(an.nodeType===1){
+      var tag=an.tagName;
+      if(tag==='I'||tag==='DIV'||tag==='BR')break;
+      artistParts.push(an.textContent||'');
+    }else if(an.nodeType===3){
+      artistParts.push(an.nodeValue||'');
+    }
+  }
+  artist=norm(artistParts.join('')).replace(/\\s*[-\\u2013\\u2014]\\s*$/,'').trim();
+}
+if(!artist){
+  var artistEl=row.querySelector('a[href*="/artist/"]');
+  artist=artistEl?norm(artistEl.textContent):'';
+}
 if(!artist)return;
 var rowText=norm(row.textContent);
 var yp=rowText.match(/\\(((?:19|20)\\d{2})\\)/);
@@ -50,6 +71,7 @@ if(o.s>=200&&o.s<300&&o.b&&o.b.ok){
 var msg='RYMScraper: imported '+o.b.added+' new, '+o.b.duplicates+' duplicate';
 if(o.b.datesRefreshed){msg+=', '+o.b.datesRefreshed+' date'+(o.b.datesRefreshed===1?'':'s')+' refreshed';}
 if(o.b.coversRefreshed){msg+=', '+o.b.coversRefreshed+' cover'+(o.b.coversRefreshed===1?'':'s')+' refreshed';}
+if(o.b.artistsRefreshed){msg+=', '+o.b.artistsRefreshed+' artist'+(o.b.artistsRefreshed===1?'':'s')+' refreshed';}
 msg+=' (total '+o.b.total+').';
 if(o.b.sync&&o.b.sync.active){msg+=' [sync: page '+o.b.sync.pageCount+', '+o.b.sync.totalSeen+' albums seen]';}
 alert(msg);

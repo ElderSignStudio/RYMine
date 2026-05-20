@@ -273,7 +273,8 @@
 							{:else}
 								({form.duplicates} duplicate{form.duplicates === 1 ? '' : 's'} skipped{#if form.datesRefreshed}
 									· {form.datesRefreshed} date{form.datesRefreshed === 1 ? '' : 's'} refreshed{/if}{#if form.coversRefreshed}
-									· {form.coversRefreshed} cover{form.coversRefreshed === 1 ? '' : 's'} refreshed{/if}
+									· {form.coversRefreshed} cover{form.coversRefreshed === 1 ? '' : 's'} refreshed{/if}{#if form.artistsRefreshed}
+									· {form.artistsRefreshed} artist{form.artistsRefreshed === 1 ? '' : 's'} refreshed{/if}
 								· total {form.total})
 							{/if}
 						</span>

@@ -43,8 +43,30 @@ export function parseWishlistHtml(html: string): ParsedAlbum[] {
 			.first();
 		const scope = row.length ? row : $(el).parent();
 
-		const artistEl = scope.find('a[href*="/artist/"]').first();
-		const artist = norm(artistEl.text());
+		// Artist(s) — walk the .or_q_albumartist wrapper's children up to (but
+		// not including) the <i> that wraps the album title. Collab albums
+		// render as multiple <a class="artist"> siblings with RYM-provided
+		// separators between them; this preserves the full string.
+		let artist = '';
+		const artistWrap = scope.find('.or_q_albumartist').first();
+		if (artistWrap.length > 0) {
+			const parts: string[] = [];
+			const children = artistWrap[0].children ?? [];
+			for (const node of children) {
+				if (node.type === 'tag') {
+					const tag = node.name?.toLowerCase();
+					if (tag === 'i' || tag === 'div' || tag === 'br') break;
+					parts.push($(node).text());
+				} else if (node.type === 'text') {
+					parts.push(node.data ?? '');
+				}
+			}
+			artist = norm(parts.join('')).replace(/\s*[-–—]\s*$/, '');
+		}
+		if (!artist) {
+			const artistEl = scope.find('a[href*="/artist/"]').first();
+			artist = norm(artistEl.text());
+		}
 		if (!artist) return;
 
 		const rowText = norm(scope.text());
