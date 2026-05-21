@@ -59,17 +59,9 @@
 			.filter((d) => d.name.toLowerCase().includes(uiState.descriptorFilter.trim().toLowerCase()));
 	});
 
-	const unenrichedCount = $derived(
-		data.albums.filter(
-			(a) =>
-				!a.enrichedAt ||
-				typeof a.rymRating !== 'number' ||
-				!a.descriptors ||
-				a.descriptors.length === 0 ||
-				!a.secondaryGenres ||
-				a.secondaryGenres.length === 0
-		).length
-	);
+	// Matches the queue page's rule: an album counts as enriched once the
+	// bookmarklet has run on it, even if some RYM fields came back empty.
+	const unenrichedCount = $derived(data.albums.filter((a) => !a.enrichedAt).length);
 
 	const sync = $derived(data.syncSession);
 	const previewSeverity = $derived.by<'none' | 'mild' | 'strong'>(() => {
@@ -114,6 +106,17 @@
 			e.preventDefault();
 		}
 	}
+
+	// When the user comes back from a RYM tab after running the import or
+	// enrich bookmarklet, re-fetch so all (app)/* pages — list, detail, queue —
+	// pick up the new data without a manual reload.
+	$effect(() => {
+		function onFocus() {
+			invalidateAll();
+		}
+		window.addEventListener('focus', onFocus);
+		return () => window.removeEventListener('focus', onFocus);
+	});
 
 	// Poll while a sync is active so banner counts stay roughly live.
 	$effect(() => {

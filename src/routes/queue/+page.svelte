@@ -138,7 +138,8 @@
 						Missing details ({unenriched.length})
 					</h2>
 					<p class="text-xs text-base-content/60">
-						Albums with no enrichedAt, no RYM avg rating, no descriptors, or no secondary genres.
+						Albums you haven't enriched yet. Albums with sparse RYM data (no descriptors, no
+						secondary genres, etc.) still count as enriched once the bookmarklet has run.
 					</p>
 				</div>
 			</header>

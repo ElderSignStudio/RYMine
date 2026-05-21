@@ -2,16 +2,13 @@ import type { WishlistAlbum } from '$lib/types';
 import { loadWishlistData, type WishlistAlbumView } from '$lib/server/wishlist';
 import type { PageServerLoad } from './$types';
 
-// An album is "missing details" if any of these are absent. We OR the checks
-// so a partial enrichment (e.g. one where descriptors were empty on RYM)
-// still surfaces in the queue — that way the user can re-run the bookmarklet
-// if RYM later filled the field in.
+// `enrichedAt` is the authoritative signal: it's set whenever the bookmarklet
+// successfully ran on the release page. Some releases legitimately have no
+// descriptors / no secondary genres / no average rating on RYM, so we don't
+// keep nagging the user about them — re-running wouldn't change anything.
+// The row-level "missing X" chips on the page are still informational.
 function isUnenriched(a: WishlistAlbum): boolean {
-	if (!a.enrichedAt) return true;
-	if (typeof a.rymRating !== 'number') return true;
-	if (!a.descriptors || a.descriptors.length === 0) return true;
-	if (!a.secondaryGenres || a.secondaryGenres.length === 0) return true;
-	return false;
+	return !a.enrichedAt;
 }
 
 export const load: PageServerLoad = async () => {
