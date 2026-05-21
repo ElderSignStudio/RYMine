@@ -325,10 +325,10 @@
 					/>
 					<button
 						type="button"
-						class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md sm:btn-md"
+						class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
 						onclick={pickFiles}
 						disabled={importing}
-						title="Import saved RYM wishlist HTML pages"
+						title="Import saved RYM wishlist HTML pages (legacy — the bookmarklet is the easier path)"
 					>
 						{#if importing}
 							<span class="loading loading-xs loading-spinner"></span>
