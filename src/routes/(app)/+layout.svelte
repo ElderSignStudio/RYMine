@@ -21,6 +21,22 @@
 	let importForm = $state<HTMLFormElement | null>(null);
 	let finishModalOpen = $state(false);
 
+	// Mobile-only collapse state for the sidebar sections. We initialise from
+	// the URL (read directly, not from the $derived `filters`, to avoid Svelte
+	// state-init warnings) so a deep link with ?g=… or ?d=… arrives expanded.
+	// On lg+ these flags don't affect layout — CSS forces the panels open.
+	let genresOpenMobile = $state<boolean>(Boolean(page.url.searchParams.get('g')));
+	let descriptorsOpenMobile = $state<boolean>(Boolean(page.url.searchParams.get('d')));
+	$effect(() => {
+		// Auto-expand the section when its filter becomes active (e.g. user
+		// tapped a genre badge from an album row). We only open — never auto-
+		// close — so manual collapses stay in effect.
+		if (filters.genre) genresOpenMobile = true;
+	});
+	$effect(() => {
+		if (filters.descriptor) descriptorsOpenMobile = true;
+	});
+
 	// URL is the source of truth for selected genre / descriptor / search /
 	// sort. See $lib/filters.ts for the rationale (back-nav, bookmarkability).
 	const filters = $derived(parseFilters(page.url.searchParams));
@@ -158,13 +174,15 @@
 	<header
 		class="sticky top-0 z-20 border-b border-base-300/70 bg-base-200/80 backdrop-blur supports-backdrop-filter:bg-base-200/60"
 	>
-		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
-			<a href="/" class="flex items-center gap-3" title="Back to album list">
+		<div
+			class="mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3"
+		>
+			<a href="/" class="flex items-center gap-2 sm:gap-3" title="Back to album list">
 				<span
-					class="relative block h-14 w-14 shrink-0 overflow-hidden rounded-md bg-base-300/40 shadow-sm"
+					class="relative block h-9 w-9 shrink-0 overflow-hidden rounded-md bg-base-300/40 shadow-sm sm:h-14 sm:w-14"
 				>
 					<span
-						class="absolute inset-0 flex items-center justify-center text-2xl text-base-content/40"
+						class="absolute inset-0 flex items-center justify-center text-lg text-base-content/40 sm:text-2xl"
 						aria-hidden="true"
 					>
 						⛏
@@ -177,7 +195,7 @@
 						decoding="async"
 					/>
 				</span>
-				<h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">RYMine</h1>
+				<h1 class="text-lg font-semibold tracking-tight sm:text-3xl">RYMine</h1>
 			</a>
 
 			<div class="ml-auto flex items-center gap-3">
@@ -346,6 +364,51 @@
 				</form>
 			</div>
 		</div>
+
+		<!-- Mobile-only active-filter strip. Rides along with the sticky header
+		     so it stays visible while the album list scrolls underneath. -->
+		{#if filters.genre || filters.descriptor || filters.query}
+			<div class="border-t border-base-300/70 bg-base-200/85 px-3 py-1.5 lg:hidden">
+				<div class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1.5 text-xs">
+					<span class="text-base-content/50">filters:</span>
+					{#if filters.genre}
+						<button
+							type="button"
+							class="badge gap-1 badge-sm badge-primary"
+							onclick={() => selectGenre(filters.genre as string)}
+							title="Remove genre filter"
+						>
+							{filters.genre}
+							<span aria-hidden="true">✕</span>
+						</button>
+					{/if}
+					{#if filters.descriptor}
+						<button
+							type="button"
+							class="badge gap-1 badge-sm italic badge-secondary"
+							onclick={() => selectDescriptor(filters.descriptor as string)}
+							title="Remove descriptor filter"
+						>
+							{filters.descriptor}
+							<span aria-hidden="true">✕</span>
+						</button>
+					{/if}
+					{#if filters.query}
+						<span class="badge gap-1 badge-ghost badge-sm" title={`search: ${filters.query}`}>
+							“{filters.query}”
+						</span>
+					{/if}
+					<button
+						type="button"
+						class="btn ml-auto btn-ghost btn-xs"
+						onclick={clearAllFilters}
+						title="Clear all filters and search"
+					>
+						Clear all
+					</button>
+				</div>
+			</div>
+		{/if}
 	</header>
 
 	<!-- Active full-sync banner -->
@@ -475,178 +538,233 @@
 		>
 			<!-- Genres section -->
 			<div class="flex min-h-0 flex-col">
-				<div class="border-b border-base-300/70 p-4">
-					<div class="mb-2 flex items-baseline justify-between">
+				<!-- Section header — clickable on mobile to toggle, inert on lg+
+				     (the body below is forced open by Tailwind anyway). -->
+				<button
+					type="button"
+					onclick={() => (genresOpenMobile = !genresOpenMobile)}
+					class="flex w-full items-center justify-between gap-2 border-b border-base-300/70 p-4 text-left transition-colors hover:bg-base-300/30 lg:cursor-default lg:hover:bg-transparent"
+					aria-expanded={genresOpenMobile}
+					aria-controls="sidebar-genres-body"
+				>
+					<span class="flex min-w-0 items-center gap-2">
+						<span class="text-xs text-base-content/40 lg:hidden" aria-hidden="true"
+							>{genresOpenMobile ? '▾' : '▸'}</span
+						>
 						<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
 							Genres
 						</h2>
-						<span
-							class="text-xs text-base-content/50"
-							title={filters.descriptor || filters.query
-								? 'genres available within current descriptor + search'
-								: 'across all albums'}
-						>
-							{allGenres.length}
-							{filters.descriptor || filters.query ? 'here' : 'total'}
-						</span>
-					</div>
-					<div class="mb-2 flex items-center gap-1 text-xs">
-						<span class="text-base-content/50">sort:</span>
-						<button
-							type="button"
-							class="btn btn-ghost btn-xs {uiState.genreSort === 'name' ? 'btn-active' : ''}"
-							onclick={() => (uiState.genreSort = 'name')}
-							title="Alphabetical"
-						>
-							A–Z
-						</button>
-						<button
-							type="button"
-							class="btn btn-ghost btn-xs {uiState.genreSort === 'count' ? 'btn-active' : ''}"
-							onclick={() => (uiState.genreSort = 'count')}
-							title="By album count, highest first"
-						>
-							count
-						</button>
-					</div>
-					<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							class="h-4 w-4 opacity-60"
-							aria-hidden="true"
-						>
-							<circle cx="11" cy="11" r="7" />
-							<path d="m21 21-4.3-4.3" />
-						</svg>
-						<input
-							type="text"
-							bind:value={uiState.genreFilter}
-							placeholder="Filter genres…"
-							class="grow bg-transparent outline-none"
-							aria-label="Filter genres"
-						/>
-					</label>
-				</div>
+						{#if filters.genre && !genresOpenMobile}
+							<span class="badge truncate badge-sm badge-primary lg:hidden" title="active genre">
+								{filters.genre}
+							</span>
+						{/if}
+					</span>
+					<span
+						class="shrink-0 text-xs text-base-content/50"
+						title={filters.descriptor || filters.query
+							? 'genres available within current descriptor + search'
+							: 'across all albums'}
+					>
+						{allGenres.length}
+						{filters.descriptor || filters.query ? 'here' : 'total'}
+					</span>
+				</button>
 
-				<ul class="scrollbar-soft max-h-[35vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[36vh]">
-					{#each visibleGenres as genre (genre.name)}
-						<li>
+				<div
+					id="sidebar-genres-body"
+					class="flex min-h-0 flex-col {genresOpenMobile ? '' : 'hidden'} lg:flex"
+				>
+					<div class="border-b border-base-300/70 px-4 pt-3 pb-4">
+						<div class="mb-2 flex items-center gap-1 text-xs">
+							<span class="text-base-content/50">sort:</span>
 							<button
 								type="button"
-								onclick={() => selectGenre(genre.name)}
-								class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150
+								class="btn btn-ghost btn-xs {uiState.genreSort === 'name' ? 'btn-active' : ''}"
+								onclick={() => (uiState.genreSort = 'name')}
+								title="Alphabetical"
+							>
+								A–Z
+							</button>
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs {uiState.genreSort === 'count' ? 'btn-active' : ''}"
+								onclick={() => (uiState.genreSort = 'count')}
+								title="By album count, highest first"
+							>
+								count
+							</button>
+						</div>
+						<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								class="h-4 w-4 opacity-60"
+								aria-hidden="true"
+							>
+								<circle cx="11" cy="11" r="7" />
+								<path d="m21 21-4.3-4.3" />
+							</svg>
+							<input
+								type="text"
+								bind:value={uiState.genreFilter}
+								placeholder="Filter genres…"
+								class="grow bg-transparent outline-none"
+								aria-label="Filter genres"
+							/>
+						</label>
+					</div>
+
+					<ul
+						class="scrollbar-soft max-h-[35vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[36vh]"
+					>
+						{#each visibleGenres as genre (genre.name)}
+							<li>
+								<button
+									type="button"
+									onclick={() => selectGenre(genre.name)}
+									class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150
 									hover:bg-base-300/60
 									{filters.genre === genre.name
-									? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
-									: ''}"
-							>
-								<span class="truncate font-medium">{genre.name}</span>
-								<span
-									class="badge badge-ghost badge-sm transition group-hover:badge-neutral"
-									aria-label="{genre.count} albums"
+										? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
+										: ''}"
 								>
-									{genre.count}
-								</span>
-							</button>
-						</li>
-					{:else}
-						<li class="px-3 py-6 text-center text-sm text-base-content/50">No genres match.</li>
-					{/each}
-				</ul>
+									<span class="truncate font-medium">{genre.name}</span>
+									<span
+										class="badge badge-ghost badge-sm transition group-hover:badge-neutral"
+										aria-label="{genre.count} albums"
+									>
+										{genre.count}
+									</span>
+								</button>
+							</li>
+						{:else}
+							<li class="px-3 py-6 text-center text-sm text-base-content/50">No genres match.</li>
+						{/each}
+					</ul>
+				</div>
 			</div>
 
 			<!-- Descriptors section -->
 			<div class="flex min-h-0 flex-col border-t border-base-300/70">
-				<div class="border-b border-base-300/70 p-4">
-					<div class="mb-2 flex items-baseline justify-between">
+				<button
+					type="button"
+					onclick={() => (descriptorsOpenMobile = !descriptorsOpenMobile)}
+					class="flex w-full items-center justify-between gap-2 border-b border-base-300/70 p-4 text-left transition-colors hover:bg-base-300/30 lg:cursor-default lg:hover:bg-transparent"
+					aria-expanded={descriptorsOpenMobile}
+					aria-controls="sidebar-descriptors-body"
+				>
+					<span class="flex min-w-0 items-center gap-2">
+						<span class="text-xs text-base-content/40 lg:hidden" aria-hidden="true"
+							>{descriptorsOpenMobile ? '▾' : '▸'}</span
+						>
 						<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
 							Descriptors
 						</h2>
-						<span
-							class="text-xs text-base-content/50"
-							title={filters.genre || filters.query
-								? 'descriptors available within current genre + search'
-								: 'across all albums'}
-						>
-							{allDescriptors.length}
-							{filters.genre || filters.query ? 'here' : 'total'}
-						</span>
-					</div>
-					<div class="mb-2 flex items-center gap-1 text-xs">
-						<span class="text-base-content/50">sort:</span>
-						<button
-							type="button"
-							class="btn btn-ghost btn-xs {uiState.descriptorSort === 'name' ? 'btn-active' : ''}"
-							onclick={() => (uiState.descriptorSort = 'name')}
-							title="Alphabetical"
-						>
-							A–Z
-						</button>
-						<button
-							type="button"
-							class="btn btn-ghost btn-xs {uiState.descriptorSort === 'count' ? 'btn-active' : ''}"
-							onclick={() => (uiState.descriptorSort = 'count')}
-							title="By album count, highest first"
-						>
-							count
-						</button>
-					</div>
-					<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							class="h-4 w-4 opacity-60"
-							aria-hidden="true"
-						>
-							<circle cx="11" cy="11" r="7" />
-							<path d="m21 21-4.3-4.3" />
-						</svg>
-						<input
-							type="text"
-							bind:value={uiState.descriptorFilter}
-							placeholder="Filter descriptors…"
-							class="grow bg-transparent outline-none"
-							aria-label="Filter descriptors"
-						/>
-					</label>
-				</div>
+						{#if filters.descriptor && !descriptorsOpenMobile}
+							<span
+								class="badge gap-1 truncate badge-sm italic badge-secondary lg:hidden"
+								title="active descriptor"
+							>
+								{filters.descriptor}
+							</span>
+						{/if}
+					</span>
+					<span
+						class="shrink-0 text-xs text-base-content/50"
+						title={filters.genre || filters.query
+							? 'descriptors available within current genre + search'
+							: 'across all albums'}
+					>
+						{allDescriptors.length}
+						{filters.genre || filters.query ? 'here' : 'total'}
+					</span>
+				</button>
 
-				<ul class="scrollbar-soft max-h-[35vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[36vh]">
-					{#each visibleDescriptors as descriptor (descriptor.name)}
-						<li>
+				<div
+					id="sidebar-descriptors-body"
+					class="flex min-h-0 flex-col {descriptorsOpenMobile ? '' : 'hidden'} lg:flex"
+				>
+					<div class="border-b border-base-300/70 px-4 pt-3 pb-4">
+						<div class="mb-2 flex items-center gap-1 text-xs">
+							<span class="text-base-content/50">sort:</span>
 							<button
 								type="button"
-								onclick={() => selectDescriptor(descriptor.name)}
-								class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs italic transition-colors duration-150
+								class="btn btn-ghost btn-xs {uiState.descriptorSort === 'name' ? 'btn-active' : ''}"
+								onclick={() => (uiState.descriptorSort = 'name')}
+								title="Alphabetical"
+							>
+								A–Z
+							</button>
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs {uiState.descriptorSort === 'count'
+									? 'btn-active'
+									: ''}"
+								onclick={() => (uiState.descriptorSort = 'count')}
+								title="By album count, highest first"
+							>
+								count
+							</button>
+						</div>
+						<label class="input-bordered input input-sm flex items-center gap-2 bg-base-100/70">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								class="h-4 w-4 opacity-60"
+								aria-hidden="true"
+							>
+								<circle cx="11" cy="11" r="7" />
+								<path d="m21 21-4.3-4.3" />
+							</svg>
+							<input
+								type="text"
+								bind:value={uiState.descriptorFilter}
+								placeholder="Filter descriptors…"
+								class="grow bg-transparent outline-none"
+								aria-label="Filter descriptors"
+							/>
+						</label>
+					</div>
+
+					<ul
+						class="scrollbar-soft max-h-[35vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[36vh]"
+					>
+						{#each visibleDescriptors as descriptor (descriptor.name)}
+							<li>
+								<button
+									type="button"
+									onclick={() => selectDescriptor(descriptor.name)}
+									class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs italic transition-colors duration-150
 									hover:bg-base-300/60
 									{filters.descriptor === descriptor.name
-									? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
-									: ''}"
-							>
-								<span class="truncate">{descriptor.name}</span>
-								<span
-									class="badge badge-ghost badge-xs not-italic transition group-hover:badge-neutral"
-									aria-label="{descriptor.count} albums"
+										? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
+										: ''}"
 								>
-									{descriptor.count}
-								</span>
-							</button>
-						</li>
-					{:else}
-						<li class="px-3 py-6 text-center text-xs text-base-content/50">
-							{allDescriptors.length === 0
-								? 'Run the Enrich Album bookmarklet on a release page to start collecting descriptors.'
-								: 'No descriptors match.'}
-						</li>
-					{/each}
-				</ul>
+									<span class="truncate">{descriptor.name}</span>
+									<span
+										class="badge badge-ghost badge-xs not-italic transition group-hover:badge-neutral"
+										aria-label="{descriptor.count} albums"
+									>
+										{descriptor.count}
+									</span>
+								</button>
+							</li>
+						{:else}
+							<li class="px-3 py-6 text-center text-xs text-base-content/50">
+								{allDescriptors.length === 0
+									? 'Run the Enrich Album bookmarklet on a release page to start collecting descriptors.'
+									: 'No descriptors match.'}
+							</li>
+						{/each}
+					</ul>
+				</div>
 			</div>
 
 			{#if filters.genre || filters.descriptor || filters.query}
