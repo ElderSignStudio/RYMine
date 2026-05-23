@@ -236,8 +236,9 @@
 		</label>
 
 		{#if filters.genre || filters.descriptor}
-			<!-- Compact reminder of which filters are active, with one-click dismiss. -->
-			<div class="flex flex-wrap items-center gap-1.5 text-xs text-base-content/60">
+			<!-- Compact reminder of active filters. Hidden on mobile — the
+			     sticky chip strip in the header already covers it there. -->
+			<div class="hidden flex-wrap items-center gap-1.5 text-xs text-base-content/60 lg:flex">
 				<span class="text-base-content/50">filters:</span>
 				{#if filters.genre}
 					<button
@@ -297,6 +298,7 @@
 							{/if}
 						</span>
 						<span class="min-w-0 flex-1">
+							<!-- Title line — artist / title / year. Truncates on mobile if needed. -->
 							<span class="block truncate text-sm font-medium sm:text-[0.95rem]">
 								<span class="text-base-content/90">{album.artist}</span>
 								<span class="text-base-content/40"> — </span>
@@ -304,20 +306,31 @@
 								{#if album.year}
 									<span class="ml-1 text-base-content/50">({album.year})</span>
 								{/if}
-								{#if typeof album.rymRating === 'number'}
-									<span class="ml-1 text-xs text-base-content/55" title="RYM average rating">
-										· ★ {album.rymRating.toFixed(2)}
-									</span>
-								{/if}
-								{#if typeof album.myRating === 'number'}
-									<span class="ml-1 text-xs font-medium text-primary/80" title="Your rating">
-										· you {album.myRating}
-									</span>
-								{/if}
-								{#if addedDisplay}
-									<span class="ml-1 text-xs text-base-content/40">· added {addedDisplay}</span>
-								{/if}
 							</span>
+							<!-- Meta line — ratings / added. Block on mobile (its own row),
+							     inline-ish on desktop (sits after the title with a leading dot
+							     so it reads as one continuation). -->
+							{#if typeof album.rymRating === 'number' || typeof album.myRating === 'number' || addedDisplay}
+								<span
+									class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs leading-tight sm:mt-0 sm:inline sm:gap-x-1"
+								>
+									{#if typeof album.rymRating === 'number'}
+										<span class="text-base-content/55" title="RYM average rating">
+											<span class="hidden sm:inline">· </span>★ {album.rymRating.toFixed(2)}
+										</span>
+									{/if}
+									{#if typeof album.myRating === 'number'}
+										<span class="font-medium text-primary/80" title="Your rating">
+											<span class="hidden sm:inline">· </span>you {album.myRating}
+										</span>
+									{/if}
+									{#if addedDisplay}
+										<span class="text-base-content/40">
+											<span class="hidden sm:inline">· </span>added {addedDisplay}
+										</span>
+									{/if}
+								</span>
+							{/if}
 						</span>
 					</a>
 					<a
