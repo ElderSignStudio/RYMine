@@ -41,6 +41,13 @@
 	// sort. See $lib/filters.ts for the rationale (back-nav, bookmarkability).
 	const filters = $derived(parseFilters(page.url.searchParams));
 
+	// Detail routes (/album/[id]) don't benefit from the sidebar filters or the
+	// mobile chip strip — both belong to the album list. On mobile, leaving
+	// them in the flow pushes the actual detail content below the fold so the
+	// user lands on the sidebar headers after navigation. Hide both on detail
+	// routes (mobile keeps the page lean; desktop still gets the left sidebar).
+	const isDetailPage = $derived(page.url.pathname.startsWith('/album/'));
+
 	// Each sidebar list narrows to "what could you add given the OTHER active
 	// filters?" — picking a genre narrows the descriptor list to descriptors on
 	// matching albums (and vice versa). Search is included too so the sidebar
@@ -366,8 +373,9 @@
 		</div>
 
 		<!-- Mobile-only active-filter strip. Rides along with the sticky header
-		     so it stays visible while the album list scrolls underneath. -->
-		{#if filters.genre || filters.descriptor || filters.query}
+		     so it stays visible while the album list scrolls underneath.
+		     Suppressed on detail pages where it's not relevant. -->
+		{#if (filters.genre || filters.descriptor || filters.query) && !isDetailPage}
 			<div class="border-t border-base-300/70 bg-base-200/85 px-3 py-1.5 lg:hidden">
 				<div class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1.5 text-xs">
 					<span class="text-base-content/50">filters:</span>
@@ -534,7 +542,9 @@
 	<!-- Main two-pane layout: sidebar + right panel slot -->
 	<main class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row">
 		<aside
-			class="scrollbar-soft card flex w-full shrink-0 flex-col overflow-hidden border border-base-300/70 bg-base-200/60 shadow-sm lg:sticky lg:top-21 lg:max-h-[calc(100vh-6.5rem)] lg:w-72"
+			class="scrollbar-soft card w-full shrink-0 flex-col overflow-hidden border border-base-300/70 bg-base-200/60 shadow-sm lg:sticky lg:top-21 lg:flex lg:max-h-[calc(100vh-6.5rem)] lg:w-72 {isDetailPage
+				? 'hidden'
+				: 'flex'}"
 		>
 			<!-- Genres section -->
 			<div class="flex min-h-0 flex-col">
