@@ -2,7 +2,8 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll, goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { albumHasGenre, descriptorCounts, formatLastScraped, genreCounts } from '$lib/genres';
+	import { buildFiltersURL, filterAlbums, parseFilters, withChanges } from '$lib/filters';
+	import { descriptorCounts, formatLastScraped, genreCounts } from '$lib/genres';
 	import { DEFAULT_THEME, THEMES, THEME_BLURBS, themeStore, type Theme } from '$lib/theme.svelte';
 	import { uiState } from '$lib/uiState.svelte';
 	import type { LayoutData } from './$types';
@@ -20,36 +21,42 @@
 	let importForm = $state<HTMLFormElement | null>(null);
 	let finishModalOpen = $state(false);
 
-	const allGenres = $derived(genreCounts(data.albums));
+	// URL is the source of truth for selected genre / descriptor / search /
+	// sort. See $lib/filters.ts for the rationale (back-nav, bookmarkability).
+	const filters = $derived(parseFilters(page.url.searchParams));
 
-	// Descriptor counts narrow to the currently-selected genre so the sidebar
-	// only offers descriptors that can actually combine with that genre. If
-	// nothing's selected, we show the full set.
-	const descriptorSourceAlbums = $derived(
-		uiState.selectedGenre
-			? data.albums.filter((a) => albumHasGenre(a, uiState.selectedGenre as string))
-			: data.albums
+	// Each sidebar list narrows to "what could you add given the OTHER active
+	// filters?" — picking a genre narrows the descriptor list to descriptors on
+	// matching albums (and vice versa). Search is included too so the sidebar
+	// reflects whatever's currently visible in the album list.
+	const genresSourceAlbums = $derived(
+		filterAlbums(data.albums, { descriptor: filters.descriptor, query: filters.query })
 	);
-	const allDescriptors = $derived(descriptorCounts(descriptorSourceAlbums));
+	const descriptorsSourceAlbums = $derived(
+		filterAlbums(data.albums, { genre: filters.genre, query: filters.query })
+	);
 
-	const visibleGenres = $derived(
-		[...allGenres]
+	const allGenres = $derived(genreCounts(genresSourceAlbums));
+	const allDescriptors = $derived(descriptorCounts(descriptorsSourceAlbums));
+
+	const visibleGenres = $derived.by(() => {
+		const list = [...allGenres];
+		// Pin the currently-selected genre even if narrowing knocked its count
+		// to zero, so the user always has a place to deselect from.
+		const sel = filters.genre;
+		if (sel && !list.some((g) => g.name === sel)) list.push({ name: sel, count: 0 });
+		return list
 			.sort((a, b) => {
 				if (uiState.genreSort === 'count') return b.count - a.count || a.name.localeCompare(b.name);
 				return a.name.localeCompare(b.name);
 			})
-			.filter((g) => g.name.toLowerCase().includes(uiState.genreFilter.trim().toLowerCase()))
-	);
+			.filter((g) => g.name.toLowerCase().includes(uiState.genreFilter.trim().toLowerCase()));
+	});
 
 	const visibleDescriptors = $derived.by(() => {
 		const list = [...allDescriptors];
-		// Keep the selected descriptor pinned in the list even if it has zero
-		// albums under the current genre filter — otherwise it disappears while
-		// still being selected, leaving no way to deselect from the sidebar.
-		const sel = uiState.selectedDescriptor;
-		if (sel && !list.some((d) => d.name === sel)) {
-			list.push({ name: sel, count: 0 });
-		}
+		const sel = filters.descriptor;
+		if (sel && !list.some((d) => d.name === sel)) list.push({ name: sel, count: 0 });
 		return list
 			.sort((a, b) => {
 				if (uiState.descriptorSort === 'count')
@@ -72,19 +79,20 @@
 	});
 
 	async function selectGenre(name: string) {
-		uiState.selectedGenre = uiState.selectedGenre === name ? null : name;
-		// If we're not on the album list, jump to it so the filter takes effect.
-		if (page.url.pathname !== '/') await goto('/');
+		const next = withChanges(filters, { genre: filters.genre === name ? null : name });
+		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
 	async function selectDescriptor(name: string) {
-		uiState.selectedDescriptor = uiState.selectedDescriptor === name ? null : name;
-		if (page.url.pathname !== '/') await goto('/');
+		const next = withChanges(filters, {
+			descriptor: filters.descriptor === name ? null : name
+		});
+		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
-	function clearAllFilters() {
-		uiState.selectedGenre = null;
-		uiState.selectedDescriptor = null;
+	async function clearAllFilters() {
+		const next = withChanges(filters, { genre: null, descriptor: null, query: '' });
+		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
 	function pickFiles() {
@@ -477,7 +485,15 @@
 						<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
 							Genres
 						</h2>
-						<span class="text-xs text-base-content/50">{allGenres.length} total</span>
+						<span
+							class="text-xs text-base-content/50"
+							title={filters.descriptor || filters.query
+								? 'genres available within current descriptor + search'
+								: 'across all albums'}
+						>
+							{allGenres.length}
+							{filters.descriptor || filters.query ? 'here' : 'total'}
+						</span>
 					</div>
 					<div class="mb-2 flex items-center gap-1 text-xs">
 						<span class="text-base-content/50">sort:</span>
@@ -529,7 +545,7 @@
 								onclick={() => selectGenre(genre.name)}
 								class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150
 									hover:bg-base-300/60
-									{uiState.selectedGenre === genre.name
+									{filters.genre === genre.name
 									? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
 									: ''}"
 							>
@@ -557,10 +573,12 @@
 						</h2>
 						<span
 							class="text-xs text-base-content/50"
-							title={uiState.selectedGenre ? `in "${uiState.selectedGenre}"` : 'across all albums'}
+							title={filters.genre || filters.query
+								? 'descriptors available within current genre + search'
+								: 'across all albums'}
 						>
 							{allDescriptors.length}
-							{uiState.selectedGenre ? 'here' : 'total'}
+							{filters.genre || filters.query ? 'here' : 'total'}
 						</span>
 					</div>
 					<div class="mb-2 flex items-center gap-1 text-xs">
@@ -613,7 +631,7 @@
 								onclick={() => selectDescriptor(descriptor.name)}
 								class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs italic transition-colors duration-150
 									hover:bg-base-300/60
-									{uiState.selectedDescriptor === descriptor.name
+									{filters.descriptor === descriptor.name
 									? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30'
 									: ''}"
 							>
@@ -636,13 +654,13 @@
 				</ul>
 			</div>
 
-			{#if uiState.selectedGenre || uiState.selectedDescriptor}
+			{#if filters.genre || filters.descriptor || filters.query}
 				<div class="border-t border-base-300/70 bg-base-200/40 px-3 py-2">
 					<button
 						type="button"
 						class="btn w-full btn-ghost btn-xs"
 						onclick={clearAllFilters}
-						title="Clear genre and descriptor filters"
+						title="Clear genre, descriptor, and search filters"
 					>
 						Clear filters
 					</button>

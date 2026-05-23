@@ -1,25 +1,67 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { formatWishlistDate } from '$lib/dates';
-	import { albumHasDescriptor, albumHasGenre } from '$lib/genres';
-	import { uiState } from '$lib/uiState.svelte';
+	import {
+		type AlbumSort,
+		buildFiltersURL,
+		DEFAULT_FILTERS,
+		filterAlbums,
+		hasAnyFilter,
+		parseFilters,
+		withChanges
+	} from '$lib/filters';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	// Album-list-only sort state. Genre / descriptor filter state lives on
-	// the shared uiState singleton so the sidebar drives it.
-	type AlbumSort = 'artist' | 'year' | 'added' | 'rymRating' | 'myRating';
-	let albumSort = $state<AlbumSort>('artist');
-	let albumDir = $state<'asc' | 'desc'>('asc');
+	// All filter state (genre, descriptor, search, sort, dir) lives on the URL
+	// so browser Back from /album/X returns here with everything intact, and
+	// the URL can be bookmarked / shared.
+	const filters = $derived(parseFilters(page.url.searchParams));
+
+	// Local copy of the search input so typing feels instant. We push to the URL
+	// (debounced) without rebinding the input value — that way the cursor stays
+	// put and we don't fight the navigation. Initialise straight from the URL
+	// rather than from the $derived `filters` (Svelte warns against capturing
+	// derived state in state initialisers).
+	let searchInput = $state(page.url.searchParams.get('q') ?? '');
+	let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	$effect(() => {
+		// External URL change (Back nav, Clear-all from sidebar) → sync the
+		// input. We read `searchInput` via untrack so this effect only fires
+		// when filters.query changes — without untrack, the user's own typing
+		// would re-fire it and overwrite the value they just typed.
+		const next = filters.query;
+		if (untrack(() => searchInput) !== next) searchInput = next;
+	});
+
+	function onSearchInput() {
+		if (searchTimer) clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => {
+			pushFilters({ query: searchInput });
+		}, 150);
+	}
+
+	async function pushFilters(changes: Partial<typeof DEFAULT_FILTERS>) {
+		const next = withChanges(filters, changes);
+		await goto(buildFiltersURL(next), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
 
 	const visibleAlbums = $derived.by(() => {
-		const base = data.albums.filter((a) => {
-			if (uiState.selectedGenre && !albumHasGenre(a, uiState.selectedGenre)) return false;
-			if (uiState.selectedDescriptor && !albumHasDescriptor(a, uiState.selectedDescriptor))
-				return false;
-			return true;
+		const base = filterAlbums(data.albums, {
+			genre: filters.genre,
+			descriptor: filters.descriptor,
+			query: filters.query
 		});
-		const sign = albumDir === 'asc' ? 1 : -1;
+
+		const sign = filters.dir === 'asc' ? 1 : -1;
 
 		function compareOptionalNumber(ax: number | undefined, bx: number | undefined): number {
 			if (ax === undefined && bx === undefined) return 0;
@@ -29,10 +71,10 @@
 		}
 
 		const sorted = [...base].sort((a, b) => {
-			if (albumSort === 'artist') return sign * a.artist.localeCompare(b.artist);
-			if (albumSort === 'year') return compareOptionalNumber(a.year, b.year);
-			if (albumSort === 'rymRating') return compareOptionalNumber(a.rymRating, b.rymRating);
-			if (albumSort === 'myRating') return compareOptionalNumber(a.myRating, b.myRating);
+			if (filters.sort === 'artist') return sign * a.artist.localeCompare(b.artist);
+			if (filters.sort === 'year') return compareOptionalNumber(a.year, b.year);
+			if (filters.sort === 'rymRating') return compareOptionalNumber(a.rymRating, b.rymRating);
+			if (filters.sort === 'myRating') return compareOptionalNumber(a.myRating, b.myRating);
 			// 'added' — ISO strings sort lexicographically == chronologically
 			const ad = a.dateAdded ?? '';
 			const bd = b.dateAdded ?? '';
@@ -45,18 +87,26 @@
 	});
 
 	function setAlbumSort(mode: AlbumSort) {
-		if (albumSort === mode) {
-			albumDir = albumDir === 'asc' ? 'desc' : 'asc';
+		if (filters.sort === mode) {
+			pushFilters({ dir: filters.dir === 'asc' ? 'desc' : 'asc' });
 		} else {
-			albumSort = mode;
 			// Sensible defaults: A→Z for artist, but newer/higher first for the rest.
-			albumDir = mode === 'artist' ? 'asc' : 'desc';
+			pushFilters({ sort: mode, dir: mode === 'artist' ? 'asc' : 'desc' });
 		}
 	}
 
 	function sortArrow(mode: AlbumSort): string {
-		if (albumSort !== mode) return '';
-		return albumDir === 'asc' ? ' ↑' : ' ↓';
+		if (filters.sort !== mode) return '';
+		return filters.dir === 'asc' ? ' ↑' : ' ↓';
+	}
+
+	function clearAll() {
+		searchInput = '';
+		pushFilters({ genre: null, descriptor: null, query: '' });
+	}
+
+	function pickGenreFromBadge(g: string) {
+		pushFilters({ genre: filters.genre === g ? null : g });
 	}
 
 	// Per-album visible genre split: prefer detail-page primary/secondary
@@ -78,72 +128,141 @@
 </script>
 
 <section class="card overflow-hidden border border-base-300/70 bg-base-200/40 shadow-sm">
-	<div class="flex flex-wrap items-end justify-between gap-3 border-b border-base-300/70 p-4">
-		<div>
-			<h2 class="text-base font-semibold tracking-tight sm:text-lg">
-				{uiState.selectedGenre ?? 'All albums'}
-			</h2>
-			<p class="text-xs text-base-content/60">
-				{visibleAlbums.length}
-				{visibleAlbums.length === 1 ? 'album' : 'albums'}
-				{uiState.selectedGenre ? 'in this genre' : 'in wishlist'}
-			</p>
-		</div>
-		<div class="flex flex-wrap items-center gap-1 text-xs">
-			<span class="text-base-content/50">sort:</span>
-			<button
-				type="button"
-				class="btn btn-ghost btn-xs {albumSort === 'artist' ? 'btn-active' : ''}"
-				onclick={() => setAlbumSort('artist')}
-				title="Sort alphabetically by artist"
-			>
-				artist{sortArrow('artist')}
-			</button>
-			<button
-				type="button"
-				class="btn btn-ghost btn-xs {albumSort === 'year' ? 'btn-active' : ''}"
-				onclick={() => setAlbumSort('year')}
-				title="Sort by release year"
-			>
-				year{sortArrow('year')}
-			</button>
-			<button
-				type="button"
-				class="btn btn-ghost btn-xs {albumSort === 'added' ? 'btn-active' : ''}"
-				onclick={() => setAlbumSort('added')}
-				title="Sort by wishlist-added date"
-			>
-				added{sortArrow('added')}
-			</button>
-			<button
-				type="button"
-				class="btn btn-ghost btn-xs {albumSort === 'rymRating' ? 'btn-active' : ''}"
-				onclick={() => setAlbumSort('rymRating')}
-				title="Sort by RYM average rating"
-			>
-				avg ★{sortArrow('rymRating')}
-			</button>
-			<button
-				type="button"
-				class="btn btn-ghost btn-xs {albumSort === 'myRating' ? 'btn-active' : ''}"
-				onclick={() => setAlbumSort('myRating')}
-				title="Sort by your rating (unrated last)"
-			>
-				you ★{sortArrow('myRating')}
-			</button>
-			{#if uiState.selectedGenre || uiState.selectedDescriptor}
+	<div class="flex flex-col gap-3 border-b border-base-300/70 p-4">
+		<div class="flex flex-wrap items-end justify-between gap-3">
+			<div class="min-w-0">
+				<h2 class="text-base font-semibold tracking-tight sm:text-lg">
+					{filters.genre ?? 'All albums'}
+				</h2>
+				<p class="text-xs text-base-content/60">
+					{visibleAlbums.length}
+					{visibleAlbums.length === 1 ? 'album' : 'albums'}
+					{#if filters.genre || filters.descriptor || filters.query}match current filters{:else}in
+						wishlist{/if}
+				</p>
+			</div>
+			<div class="flex flex-wrap items-center gap-1 text-xs">
+				<span class="text-base-content/50">sort:</span>
 				<button
 					type="button"
-					class="btn ml-2 btn-ghost btn-xs"
-					onclick={() => {
-						uiState.selectedGenre = null;
-						uiState.selectedDescriptor = null;
-					}}
+					class="btn btn-ghost btn-xs {filters.sort === 'artist' ? 'btn-active' : ''}"
+					onclick={() => setAlbumSort('artist')}
+					title="Sort alphabetically by artist"
 				>
-					Clear filter
+					artist{sortArrow('artist')}
+				</button>
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs {filters.sort === 'year' ? 'btn-active' : ''}"
+					onclick={() => setAlbumSort('year')}
+					title="Sort by release year"
+				>
+					year{sortArrow('year')}
+				</button>
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs {filters.sort === 'added' ? 'btn-active' : ''}"
+					onclick={() => setAlbumSort('added')}
+					title="Sort by wishlist-added date"
+				>
+					added{sortArrow('added')}
+				</button>
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs {filters.sort === 'rymRating' ? 'btn-active' : ''}"
+					onclick={() => setAlbumSort('rymRating')}
+					title="Sort by RYM average rating"
+				>
+					avg ★{sortArrow('rymRating')}
+				</button>
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs {filters.sort === 'myRating' ? 'btn-active' : ''}"
+					onclick={() => setAlbumSort('myRating')}
+					title="Sort by your rating (unrated last)"
+				>
+					you ★{sortArrow('myRating')}
+				</button>
+				{#if hasAnyFilter(filters)}
+					<button
+						type="button"
+						class="btn ml-2 btn-ghost btn-xs"
+						onclick={clearAll}
+						title="Clear genre, descriptor, and search"
+					>
+						Clear all
+					</button>
+				{/if}
+			</div>
+		</div>
+
+		<!-- Search input — title / artist substring, case-insensitive. Combines
+		     with the sidebar genre + descriptor selections via AND. -->
+		<label class="input-bordered input input-sm flex w-full items-center gap-2 bg-base-100/70">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				class="h-4 w-4 opacity-60"
+				aria-hidden="true"
+			>
+				<circle cx="11" cy="11" r="7" />
+				<path d="m21 21-4.3-4.3" />
+			</svg>
+			<input
+				type="search"
+				bind:value={searchInput}
+				oninput={onSearchInput}
+				placeholder="Search album title or artist…"
+				class="grow bg-transparent outline-none"
+				aria-label="Search albums by title or artist"
+			/>
+			{#if searchInput}
+				<button
+					type="button"
+					class="btn -mr-1 btn-ghost btn-xs"
+					onclick={() => {
+						searchInput = '';
+						pushFilters({ query: '' });
+					}}
+					aria-label="Clear search"
+					title="Clear search"
+				>
+					✕
 				</button>
 			{/if}
-		</div>
+		</label>
+
+		{#if filters.genre || filters.descriptor}
+			<!-- Compact reminder of which filters are active, with one-click dismiss. -->
+			<div class="flex flex-wrap items-center gap-1.5 text-xs text-base-content/60">
+				<span class="text-base-content/50">filters:</span>
+				{#if filters.genre}
+					<button
+						type="button"
+						class="badge gap-1 badge-sm badge-primary"
+						onclick={() => pushFilters({ genre: null })}
+						title="Remove genre filter"
+					>
+						{filters.genre}
+						<span aria-hidden="true">✕</span>
+					</button>
+				{/if}
+				{#if filters.descriptor}
+					<button
+						type="button"
+						class="badge gap-1 badge-sm italic badge-secondary"
+						onclick={() => pushFilters({ descriptor: null })}
+						title="Remove descriptor filter"
+					>
+						{filters.descriptor}
+						<span aria-hidden="true">✕</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<ul class="divide-y divide-base-300/60">
@@ -217,7 +336,7 @@
 						<button
 							type="button"
 							class="badge badge-xs transition badge-neutral hover:badge-primary"
-							onclick={() => (uiState.selectedGenre = uiState.selectedGenre === g ? null : g)}
+							onclick={() => pickGenreFromBadge(g)}
 						>
 							{g}
 						</button>
@@ -226,7 +345,7 @@
 						<button
 							type="button"
 							class="badge badge-ghost badge-xs italic opacity-60 transition hover:opacity-100 hover:badge-primary"
-							onclick={() => (uiState.selectedGenre = uiState.selectedGenre === g ? null : g)}
+							onclick={() => pickGenreFromBadge(g)}
 						>
 							{g}
 						</button>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { formatWishlistDate } from '$lib/dates';
 	import { starString } from '$lib/stars';
 	import {
@@ -13,6 +13,19 @@
 	let { data }: { data: PageData } = $props();
 
 	const album = $derived(data.album);
+
+	// Going back to the list should restore the user's filters. If the user
+	// arrived here via in-app navigation, the previous history entry IS the
+	// filtered list — `history.back()` is the cheapest way to put it back
+	// exactly as they left it. We fall back to a clean "/" only when there's
+	// no history (e.g. opened the album URL in a fresh tab).
+	function goBackToList() {
+		if (typeof window !== 'undefined' && window.history.length > 1) {
+			window.history.back();
+		} else {
+			goto('/');
+		}
+	}
 
 	// Prefer detail-page primary/secondary genres when enrichment has filled
 	// them in; otherwise fall back to the flat wishlist-row `genres` list so
@@ -46,13 +59,15 @@
 <article class="card overflow-hidden border border-base-300/70 bg-base-200/40 shadow-sm">
 	<!-- Header strip with Back -->
 	<div class="flex flex-wrap items-center gap-2 border-b border-base-300/70 px-4 py-2.5 sm:px-5">
-		<a
-			href="/"
+		<button
+			type="button"
+			onclick={goBackToList}
 			class="btn gap-1 btn-ghost transition btn-sm hover:-translate-x-0.5"
 			aria-label="Back to album list"
+			title="Back to album list (keeps your filters)"
 		>
 			← Back to list
-		</a>
+		</button>
 		<span class="ml-1 truncate text-xs text-base-content/50" title={album.url}>
 			{album.url.replace(/^https?:\/\//, '')}
 		</span>
