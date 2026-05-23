@@ -23,8 +23,9 @@ import { isAuthenticated } from '$lib/server/auth';
 // Paths that have no read-only equivalent — they exist to drive writes.
 const WRITE_ONLY_ROUTES = ['/bookmarklet', '/queue', '/api/import', '/api/enrich'];
 
-// Public paths reachable without a session (login form + its asset deps).
-const PUBLIC_ROUTES = ['/login', '/logout'];
+// Public paths reachable without a session (login form, logout, and the
+// health probe — Render's uptime monitor needs to GET it without a cookie).
+const PUBLIC_ROUTES = ['/login', '/logout', '/api/health'];
 
 // Paths exempt from the readonly POST/PUT/DELETE block. /api/publish is the
 // one accepted write surface on a readonly instance — it has its own bearer

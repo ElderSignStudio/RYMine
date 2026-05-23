@@ -3,9 +3,16 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { WishlistAlbum } from '$lib/types';
 
+// RYMINE_DATA_PATH lets the hosted readonly viewer point at a persistent
+// disk mount (e.g. /var/data/wishlist.json on Render). Local development and
+// the launcher continue to use ./data/wishlist.json by default — no env var
+// needed for that. We resolve relative paths against cwd so the env value
+// can be either absolute (production) or relative (a custom local layout).
 const ROOT = process.cwd();
-const DATA_DIR = path.join(ROOT, 'data');
-export const WISHLIST_PATH = path.join(DATA_DIR, 'wishlist.json');
+export const WISHLIST_PATH = process.env.RYMINE_DATA_PATH
+	? path.resolve(ROOT, process.env.RYMINE_DATA_PATH)
+	: path.join(ROOT, 'data', 'wishlist.json');
+const DATA_DIR = path.dirname(WISHLIST_PATH);
 
 export type WishlistFile = {
 	lastScrapedAt: string;
