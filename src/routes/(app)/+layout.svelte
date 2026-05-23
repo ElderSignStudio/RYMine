@@ -161,10 +161,10 @@
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
 			<a href="/" class="flex items-center gap-3" title="Back to album list">
 				<span
-					class="relative block h-10 w-10 shrink-0 overflow-hidden rounded-md bg-base-300/40 shadow-sm"
+					class="relative block h-14 w-14 shrink-0 overflow-hidden rounded-md bg-base-300/40 shadow-sm"
 				>
 					<span
-						class="absolute inset-0 flex items-center justify-center text-xl text-base-content/40"
+						class="absolute inset-0 flex items-center justify-center text-2xl text-base-content/40"
 						aria-hidden="true"
 					>
 						⛏
@@ -177,12 +177,7 @@
 						decoding="async"
 					/>
 				</span>
-				<div class="leading-tight">
-					<h1 class="text-lg font-semibold tracking-tight sm:text-xl">RYMine</h1>
-					<p class="hidden text-xs text-base-content/60 sm:block">
-						a cozy little wishlist, sorted by mood
-					</p>
-				</div>
+				<h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">RYMine</h1>
 			</a>
 
 			<div class="ml-auto flex items-center gap-3">
