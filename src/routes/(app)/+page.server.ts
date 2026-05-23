@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { assertWritableMode } from '$lib/server/appMode';
 import { processImport } from '$lib/server/import';
 import { parseWishlistHtml } from '$lib/server/parseWishlistHtml';
 import { readWishlistFile } from '$lib/server/wishlistStore';
@@ -19,6 +20,7 @@ import type { Actions } from './$types';
 
 export const actions: Actions = {
 	import: async ({ request }) => {
+		assertWritableMode();
 		const formData = await request.formData();
 		const files = formData
 			.getAll('files')
@@ -82,6 +84,7 @@ export const actions: Actions = {
 	},
 
 	startSync: async () => {
+		assertWritableMode();
 		const existing = await readSyncSession();
 		if (existing) {
 			return fail(409, { error: 'A sync session is already active.' });
@@ -96,6 +99,7 @@ export const actions: Actions = {
 	},
 
 	finishSync: async () => {
+		assertWritableMode();
 		const session = await readSyncSession();
 		if (!session) {
 			return fail(400, { error: 'No active sync session to finish.' });
@@ -130,6 +134,7 @@ export const actions: Actions = {
 	},
 
 	cancelSync: async () => {
+		assertWritableMode();
 		const session = await readSyncSession();
 		if (!session) {
 			return fail(400, { error: 'No active sync session to cancel.' });
