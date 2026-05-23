@@ -17,6 +17,7 @@
 
 	let importing = $state(false);
 	let refreshing = $state(false);
+	let publishing = $state(false);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let importForm = $state<HTMLFormElement | null>(null);
 	let finishModalOpen = $state(false);
@@ -244,6 +245,35 @@
 							title="Take a snapshot now and remove anything not seen by the time you finish."
 						>
 							Start Full Sync
+						</button>
+					</form>
+				{/if}
+
+				{#if data.canPublish && !isReadonly}
+					<form
+						method="POST"
+						action="/?/publish"
+						class="contents"
+						use:enhance={() => {
+							publishing = true;
+							return async ({ update }) => {
+								await update({ reset: false });
+								publishing = false;
+							};
+						}}
+					>
+						<button
+							type="submit"
+							class="btn hidden btn-ghost transition btn-outline btn-sm hover:-translate-y-0.5 sm:inline-flex"
+							disabled={publishing}
+							title="Push the local wishlist to the hosted viewer"
+						>
+							{#if publishing}
+								<span class="loading loading-xs loading-spinner"></span>
+								Publishing…
+							{:else}
+								Publish
+							{/if}
 						</button>
 					</form>
 				{/if}
@@ -557,6 +587,17 @@
 					<span>
 						Sync cancelled. {form.pageCount}
 						{form.pageCount === 1 ? 'page' : 'pages'} discarded · nothing was removed.
+					</span>
+				</div>
+			{:else if form.publishSuccess}
+				<div
+					class="alert border-success/30 bg-success/10 py-2 text-sm alert-success shadow-sm"
+					role="status"
+				>
+					<span>
+						Published <strong>{form.albums}</strong>
+						{form.albums === 1 ? 'album' : 'albums'} to <strong>{form.destination}</strong>
+						<span class="opacity-70">({new Date(form.publishedAt).toLocaleString()})</span>
 					</span>
 				</div>
 			{:else if form.error}

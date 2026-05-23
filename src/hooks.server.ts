@@ -26,6 +26,12 @@ const WRITE_ONLY_ROUTES = ['/bookmarklet', '/queue', '/api/import', '/api/enrich
 // Public paths reachable without a session (login form + its asset deps).
 const PUBLIC_ROUTES = ['/login', '/logout'];
 
+// Paths exempt from the readonly POST/PUT/DELETE block. /api/publish is the
+// one accepted write surface on a readonly instance — it has its own bearer
+// token auth (see src/routes/api/publish/+server.ts) and is the channel the
+// local writable instance uses to push fresh data.
+const READONLY_WRITE_ALLOWLIST = ['/api/publish'];
+
 function isStaticAsset(path: string): boolean {
 	if (path.startsWith('/_app/')) return true; // SvelteKit bundled JS/CSS
 	return /\.(png|jpe?g|gif|svg|ico|webp|woff2?|css|js|map|txt)$/i.test(path);
@@ -61,13 +67,22 @@ export const handle: Handle = async ({ event, resolve }) => {
 		});
 	}
 
-	// Any state-changing method outside login/logout is rejected. The login
-	// form + the logout endpoint are the only legitimate POSTs in readonly.
-	if (method !== 'GET' && method !== 'HEAD' && !PUBLIC_ROUTES.includes(path)) {
+	// Any state-changing method outside login/logout/publish is rejected. The
+	// login form + the logout endpoint + the publish endpoint are the only
+	// legitimate POSTs in readonly. /api/publish authenticates itself with a
+	// separate bearer token, so the session-cookie check below skips it too.
+	const isWriteMethod = method !== 'GET' && method !== 'HEAD';
+	if (isWriteMethod && !PUBLIC_ROUTES.includes(path) && !READONLY_WRITE_ALLOWLIST.includes(path)) {
 		return new Response('Read-only mode: writes are disabled.', {
 			status: 403,
 			headers: { 'content-type': 'text/plain; charset=utf-8' }
 		});
+	}
+
+	// /api/publish uses its own bearer-token auth — bypass the session-cookie
+	// redirect so the local sender can hit it without first "logging in".
+	if (READONLY_WRITE_ALLOWLIST.includes(path)) {
+		return resolve(event);
 	}
 
 	// Unauthenticated browser hits get bounced to /login, preserving where

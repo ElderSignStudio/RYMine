@@ -1,3 +1,4 @@
+import { CAN_SEND_PUBLISH } from '$lib/server/appMode';
 import {
 	computePreview,
 	readSyncSession,
@@ -13,5 +14,6 @@ export const load: LayoutServerLoad = async () => {
 	const syncSession: (SyncSession & { preview: SyncPreview }) | null = session
 		? { ...session, preview: computePreview(session, wishlist.albums) }
 		: null;
-	return { ...wishlist, syncSession };
+	// Boolean only — never expose the publish URL or token to the client.
+	return { ...wishlist, syncSession, canPublish: CAN_SEND_PUBLISH };
 };

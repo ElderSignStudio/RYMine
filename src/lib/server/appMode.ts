@@ -37,6 +37,21 @@ if (IS_READONLY && VIEWER_PASSWORD.length === 0) {
 	);
 }
 
+// ── Publish channel ─────────────────────────────────────────────────────────
+// `RYMINE_PUBLISH_TOKEN` is the shared secret between local writable and
+// hosted readonly. On the readonly side it gates POST /api/publish; on the
+// local side it goes into the Authorization header of the outbound publish.
+// `RYMINE_PUBLISH_URL` is only used by the local sender — the full URL of
+// the hosted /api/publish endpoint.
+const PUBLISH_TOKEN = process.env.RYMINE_PUBLISH_TOKEN ?? '';
+export const PUBLISH_URL = process.env.RYMINE_PUBLISH_URL ?? '';
+
+/** True iff the current process has the env to act as a publish *receiver*. */
+export const CAN_RECEIVE_PUBLISH = IS_READONLY && PUBLISH_TOKEN.length > 0;
+
+/** True iff the current process has the env to act as a publish *sender*. */
+export const CAN_SEND_PUBLISH = IS_LOCAL && PUBLISH_URL.length > 0 && PUBLISH_TOKEN.length > 0;
+
 /**
  * Constant-time string comparison. Plain === can leak the password length /
  * matching-prefix length via timing. crypto.timingSafeEqual requires equal
@@ -72,4 +87,22 @@ export function assertWritableMode(): void {
 	if (IS_READONLY) {
 		throw error(403, 'This RYMine instance is read-only — writes are disabled.');
 	}
+}
+
+/**
+ * Constant-time compare of the bearer token from a request against the
+ * configured publish secret. Returns false if the env isn't set (i.e. the
+ * receiver hasn't been configured) — never allow a publish when there's
+ * nothing to verify against.
+ */
+export async function verifyPublishToken(received: string | null | undefined): Promise<boolean> {
+	if (!received || PUBLISH_TOKEN.length === 0) return false;
+	if (received.length !== PUBLISH_TOKEN.length) return false;
+	const { timingSafeEqual } = await import('node:crypto');
+	return timingSafeEqual(Buffer.from(received, 'utf-8'), Buffer.from(PUBLISH_TOKEN, 'utf-8'));
+}
+
+/** Token value for outbound publish (sender side). Server-only. */
+export function publishTokenForSending(): string {
+	return PUBLISH_TOKEN;
 }
