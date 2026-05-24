@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { assertWritableMode } from '$lib/server/appMode';
 import { applyEnrichmentToAlbum, validateEnrichmentPayload } from '$lib/server/enrich';
 import {
 	normalizeUrl,
@@ -20,6 +21,7 @@ export const OPTIONS: RequestHandler = () => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
+	assertWritableMode();
 	let payload: unknown;
 	try {
 		payload = JSON.parse(await request.text());

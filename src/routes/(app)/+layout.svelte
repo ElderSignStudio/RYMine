@@ -17,6 +17,7 @@
 
 	let importing = $state(false);
 	let refreshing = $state(false);
+	let publishing = $state(false);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let importForm = $state<HTMLFormElement | null>(null);
 	let finishModalOpen = $state(false);
@@ -47,6 +48,11 @@
 	// user lands on the sidebar headers after navigation. Hide both on detail
 	// routes (mobile keeps the page lean; desktop still gets the left sidebar).
 	const isDetailPage = $derived(page.url.pathname.startsWith('/album/'));
+
+	// Mode + auth come from the root +layout.server.ts. In readonly mode we
+	// hide write controls and show a small badge + logout. The server still
+	// enforces the same rules — these flags only drive the chrome.
+	const isReadonly = $derived(data.appMode === 'readonly');
 
 	// Each sidebar list narrows to "what could you add given the OTHER active
 	// filters?" — picking a genre narrows the descriptor list to descriptors on
@@ -205,6 +211,16 @@
 				<h1 class="text-lg font-semibold tracking-tight sm:text-3xl">RYMine</h1>
 			</a>
 
+			{#if isReadonly}
+				<span
+					class="badge gap-1 badge-outline badge-sm text-base-content/70"
+					title="This RYMine instance is read-only. Writes (import / enrich / sync) are disabled."
+				>
+					<span aria-hidden="true">👁</span>
+					<span class="hidden sm:inline">read-only</span>
+				</span>
+			{/if}
+
 			<div class="ml-auto flex items-center gap-3">
 				{#if data.source === 'mock'}
 					<span
@@ -221,7 +237,7 @@
 					</span>
 				</span>
 
-				{#if !sync}
+				{#if !sync && !isReadonly}
 					<form method="POST" action="/?/startSync" class="contents" use:enhance>
 						<button
 							type="submit"
@@ -229,6 +245,35 @@
 							title="Take a snapshot now and remove anything not seen by the time you finish."
 						>
 							Start Full Sync
+						</button>
+					</form>
+				{/if}
+
+				{#if data.canPublish && !isReadonly}
+					<form
+						method="POST"
+						action="/?/publish"
+						class="contents"
+						use:enhance={() => {
+							publishing = true;
+							return async ({ update }) => {
+								await update({ reset: false });
+								publishing = false;
+							};
+						}}
+					>
+						<button
+							type="submit"
+							class="btn hidden btn-ghost transition btn-outline btn-sm hover:-translate-y-0.5 sm:inline-flex"
+							disabled={publishing}
+							title="Push the local wishlist to the hosted viewer"
+						>
+							{#if publishing}
+								<span class="loading loading-xs loading-spinner"></span>
+								Publishing…
+							{:else}
+								Publish
+							{/if}
 						</button>
 					</form>
 				{/if}
@@ -309,66 +354,79 @@
 					</div>
 				</div>
 
-				<a
-					href="/bookmarklet"
-					class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
-					title="Set up the one-click browser bookmarklets"
-				>
-					Bookmarklet
-				</a>
-
-				<a
-					href="/queue"
-					class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
-					title="Albums still missing detail metadata"
-				>
-					Queue
-					{#if unenrichedCount > 0}
-						<span class="ml-1 badge badge-xs font-medium badge-warning">
-							{unenrichedCount}
-						</span>
-					{/if}
-				</a>
-
-				<form
-					bind:this={importForm}
-					method="POST"
-					action="/?/import"
-					enctype="multipart/form-data"
-					class="contents"
-					use:enhance={() => {
-						importing = true;
-						return async ({ update }) => {
-							await update({ reset: true });
-							if (fileInput) fileInput.value = '';
-							importing = false;
-						};
-					}}
-				>
-					<input
-						bind:this={fileInput}
-						name="files"
-						type="file"
-						accept=".html,.htm,text/html"
-						multiple
-						class="hidden"
-						onchange={onFilesChosen}
-					/>
-					<button
-						type="button"
+				{#if !isReadonly}
+					<a
+						href="/bookmarklet"
 						class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
-						onclick={pickFiles}
-						disabled={importing}
-						title="Import saved RYM wishlist HTML pages (legacy — the bookmarklet is the easier path)"
+						title="Set up the one-click browser bookmarklets"
 					>
-						{#if importing}
-							<span class="loading loading-xs loading-spinner"></span>
-							Importing…
-						{:else}
-							Import HTML
+						Bookmarklet
+					</a>
+
+					<a
+						href="/queue"
+						class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
+						title="Albums still missing detail metadata"
+					>
+						Queue
+						{#if unenrichedCount > 0}
+							<span class="ml-1 badge badge-xs font-medium badge-warning">
+								{unenrichedCount}
+							</span>
 						{/if}
-					</button>
-				</form>
+					</a>
+
+					<form
+						bind:this={importForm}
+						method="POST"
+						action="/?/import"
+						enctype="multipart/form-data"
+						class="contents"
+						use:enhance={() => {
+							importing = true;
+							return async ({ update }) => {
+								await update({ reset: true });
+								if (fileInput) fileInput.value = '';
+								importing = false;
+							};
+						}}
+					>
+						<input
+							bind:this={fileInput}
+							name="files"
+							type="file"
+							accept=".html,.htm,text/html"
+							multiple
+							class="hidden"
+							onchange={onFilesChosen}
+						/>
+						<button
+							type="button"
+							class="btn hidden btn-ghost transition btn-sm hover:-translate-y-0.5 sm:inline-flex"
+							onclick={pickFiles}
+							disabled={importing}
+							title="Import saved RYM wishlist HTML pages (legacy — the bookmarklet is the easier path)"
+						>
+							{#if importing}
+								<span class="loading loading-xs loading-spinner"></span>
+								Importing…
+							{:else}
+								Import HTML
+							{/if}
+						</button>
+					</form>
+				{:else}
+					<!-- Readonly mode: replace the write toolbar with a logout link. -->
+					<form method="POST" action="/logout" class="contents">
+						<button
+							type="submit"
+							class="btn btn-ghost transition btn-sm hover:-translate-y-0.5"
+							title="Sign out"
+						>
+							Logout
+						</button>
+					</form>
+				{/if}
 			</div>
 		</div>
 
@@ -529,6 +587,17 @@
 					<span>
 						Sync cancelled. {form.pageCount}
 						{form.pageCount === 1 ? 'page' : 'pages'} discarded · nothing was removed.
+					</span>
+				</div>
+			{:else if form.publishSuccess}
+				<div
+					class="alert border-success/30 bg-success/10 py-2 text-sm alert-success shadow-sm"
+					role="status"
+				>
+					<span>
+						Published <strong>{form.albums}</strong>
+						{form.albums === 1 ? 'album' : 'albums'} to <strong>{form.destination}</strong>
+						<span class="opacity-70">({new Date(form.publishedAt).toLocaleString()})</span>
 					</span>
 				</div>
 			{:else if form.error}

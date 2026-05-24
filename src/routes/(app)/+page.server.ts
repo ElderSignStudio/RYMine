@@ -1,5 +1,7 @@
 import { fail } from '@sveltejs/kit';
+import { assertWritableMode, CAN_SEND_PUBLISH, PUBLISH_URL } from '$lib/server/appMode';
 import { processImport } from '$lib/server/import';
+import { publishToRemote } from '$lib/server/publish';
 import { parseWishlistHtml } from '$lib/server/parseWishlistHtml';
 import { readWishlistFile } from '$lib/server/wishlistStore';
 import {
@@ -19,6 +21,7 @@ import type { Actions } from './$types';
 
 export const actions: Actions = {
 	import: async ({ request }) => {
+		assertWritableMode();
 		const formData = await request.formData();
 		const files = formData
 			.getAll('files')
@@ -82,6 +85,7 @@ export const actions: Actions = {
 	},
 
 	startSync: async () => {
+		assertWritableMode();
 		const existing = await readSyncSession();
 		if (existing) {
 			return fail(409, { error: 'A sync session is already active.' });
@@ -96,6 +100,7 @@ export const actions: Actions = {
 	},
 
 	finishSync: async () => {
+		assertWritableMode();
 		const session = await readSyncSession();
 		if (!session) {
 			return fail(400, { error: 'No active sync session to finish.' });
@@ -130,6 +135,7 @@ export const actions: Actions = {
 	},
 
 	cancelSync: async () => {
+		assertWritableMode();
 		const session = await readSyncSession();
 		if (!session) {
 			return fail(400, { error: 'No active sync session to cancel.' });
@@ -139,6 +145,38 @@ export const actions: Actions = {
 			syncCancelled: true as const,
 			pageCount: session.pageCount,
 			seenCount: session.seenUrls.length
+		};
+	},
+
+	// Pushes the local wishlist file to the hosted readonly viewer. Only runs
+	// in local mode (assertWritableMode + CAN_SEND_PUBLISH); the token is read
+	// from env on the server and never crosses the wire to the client.
+	publish: async () => {
+		assertWritableMode();
+		if (!CAN_SEND_PUBLISH) {
+			return fail(400, {
+				error:
+					'Publish is not configured. Set RYMINE_PUBLISH_URL and RYMINE_PUBLISH_TOKEN in this app .env, then restart.'
+			});
+		}
+
+		const outcome = await publishToRemote();
+		if (!outcome.ok) {
+			return fail(outcome.status ?? 502, { error: outcome.error });
+		}
+
+		return {
+			publishSuccess: true as const,
+			albums: outcome.albums,
+			publishedAt: outcome.publishedAt,
+			// Render-safe display of the destination — host only, no token.
+			destination: (() => {
+				try {
+					return new URL(PUBLISH_URL).host;
+				} catch {
+					return PUBLISH_URL;
+				}
+			})()
 		};
 	}
 };

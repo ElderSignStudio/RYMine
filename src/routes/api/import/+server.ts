@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { assertWritableMode } from '$lib/server/appMode';
 import { processImport } from '$lib/server/import';
 import type { ParsedAlbum } from '$lib/server/parseWishlistHtml';
 import type { RequestHandler } from './$types';
@@ -15,6 +16,7 @@ export const OPTIONS: RequestHandler = () => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
+	assertWritableMode();
 	let payload: unknown;
 	try {
 		const body = await request.text();
