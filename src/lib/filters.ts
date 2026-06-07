@@ -13,13 +13,14 @@
 import { albumHasDescriptor, albumHasGenre } from './genres';
 import type { WishlistAlbum } from './types';
 
-export type AlbumSort = 'artist' | 'year' | 'added' | 'rymRating' | 'myRating';
+export type AlbumSort = 'artist' | 'year' | 'added' | 'rymRating' | 'myRating' | 'onDeckAt';
 export type SortDir = 'asc' | 'desc';
 
 export interface AlbumFilters {
 	genre: string | null;
 	descriptor: string | null;
 	query: string;
+	onDeck: boolean;
 	sort: AlbumSort;
 	dir: SortDir;
 }
@@ -29,13 +30,15 @@ const ALL_SORTS: readonly AlbumSort[] = [
 	'year',
 	'added',
 	'rymRating',
-	'myRating'
+	'myRating',
+	'onDeckAt'
 ] as const;
 
 export const DEFAULT_FILTERS: AlbumFilters = {
 	genre: null,
 	descriptor: null,
 	query: '',
+	onDeck: false,
 	sort: 'artist',
 	dir: 'asc'
 };
@@ -47,6 +50,7 @@ export function parseFilters(sp: URLSearchParams): AlbumFilters {
 		genre: sp.get('g') || null,
 		descriptor: sp.get('d') || null,
 		query: sp.get('q') ?? '',
+		onDeck: sp.get('deck') === '1',
 		sort: (ALL_SORTS as readonly string[]).includes(sort ?? '')
 			? (sort as AlbumSort)
 			: DEFAULT_FILTERS.sort,
@@ -63,6 +67,7 @@ export function buildFiltersURL(filters: AlbumFilters, base: string = '/'): stri
 	if (filters.genre) sp.set('g', filters.genre);
 	if (filters.descriptor) sp.set('d', filters.descriptor);
 	if (filters.query) sp.set('q', filters.query);
+	if (filters.onDeck) sp.set('deck', '1');
 	if (filters.sort !== DEFAULT_FILTERS.sort) sp.set('sort', filters.sort);
 	if (filters.dir !== DEFAULT_FILTERS.dir) sp.set('dir', filters.dir);
 	const qs = sp.toString();
@@ -74,7 +79,7 @@ export function withChanges(current: AlbumFilters, changes: Partial<AlbumFilters
 }
 
 export function hasAnyFilter(f: AlbumFilters): boolean {
-	return Boolean(f.genre || f.descriptor || f.query);
+	return Boolean(f.genre || f.descriptor || f.query || f.onDeck);
 }
 
 export function matchesQuery(album: WishlistAlbum, q: string): boolean {
@@ -93,13 +98,19 @@ export function matchesQuery(album: WishlistAlbum, q: string): boolean {
  */
 export function filterAlbums<T extends WishlistAlbum>(
 	albums: T[],
-	opts: { genre?: string | null; descriptor?: string | null; query?: string }
+	opts: {
+		genre?: string | null;
+		descriptor?: string | null;
+		query?: string;
+		onDeck?: boolean;
+	}
 ): T[] {
 	const query = (opts.query ?? '').trim();
 	return albums.filter((a) => {
 		if (opts.genre && !albumHasGenre(a, opts.genre)) return false;
 		if (opts.descriptor && !albumHasDescriptor(a, opts.descriptor)) return false;
 		if (query && !matchesQuery(a, query)) return false;
+		if (opts.onDeck && !a.onDeck) return false;
 		return true;
 	});
 }

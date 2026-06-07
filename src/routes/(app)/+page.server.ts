@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { assertWritableMode, CAN_SEND_PUBLISH, PUBLISH_URL } from '$lib/server/appMode';
 import { processImport } from '$lib/server/import';
+import { toggleAlbumOnDeck } from '$lib/server/onDeck';
 import { publishToRemote } from '$lib/server/publish';
 import { parseWishlistHtml } from '$lib/server/parseWishlistHtml';
 import { readWishlistFile } from '$lib/server/wishlistStore';
@@ -145,6 +146,26 @@ export const actions: Actions = {
 			syncCancelled: true as const,
 			pageCount: session.pageCount,
 			seenCount: session.seenUrls.length
+		};
+	},
+
+	// Toggles the per-album "On Deck" marker — personal local metadata.
+	// Idempotent: button reflects the new state from the writeback. Form sends
+	// the album URL since that's the stable key in wishlistStore (album id in
+	// the UI is derived from this URL).
+	toggleOnDeck: async ({ request }) => {
+		assertWritableMode();
+		const form = await request.formData();
+		const url = String(form.get('url') ?? '');
+		const result = await toggleAlbumOnDeck(url);
+		if (!result.ok) {
+			return fail(400, { error: result.error });
+		}
+		return {
+			onDeckToggled: true as const,
+			url: result.url,
+			onDeck: result.onDeck,
+			onDeckAt: result.onDeckAt
 		};
 	},
 

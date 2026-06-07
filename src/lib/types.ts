@@ -29,6 +29,13 @@ export type WishlistAlbum = {
 	myRating?: number;
 	enrichedAt?: string;
 	streamingLinks?: StreamingLinks;
+
+	// "On Deck" — personal-only local marker for albums currently being
+	// listened to / about to be listened to. Not part of RYM. Survives import,
+	// enrichment, full sync, and publish (the pass-through merges in those
+	// pipelines preserve unknown-to-them fields). Cleared by toggling off.
+	onDeck?: boolean;
+	onDeckAt?: string;
 };
 
 export type GenreCount = {
