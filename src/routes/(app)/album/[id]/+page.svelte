@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { formatWishlistDate } from '$lib/dates';
 	import { starString } from '$lib/stars';
@@ -13,6 +14,8 @@
 	let { data }: { data: PageData } = $props();
 
 	const album = $derived(data.album);
+	const canToggleOnDeck = $derived(data.appMode !== 'readonly');
+	const onDeckAtDisplay = $derived(formatWishlistDate(album.onDeckAt));
 
 	// Going back to the list should restore the user's filters. If the user
 	// arrived here via in-app navigation, the previous history entry IS the
@@ -117,6 +120,38 @@
 						<span class="ml-1 text-xl font-normal text-base-content/50">({album.year})</span>
 					{/if}
 				</h1>
+			</div>
+
+			<!-- On Deck toggle (local mode) / status pill (readonly). The form
+			     posts to the home page's `toggleOnDeck` action — that's where
+			     all writable wishlist mutations live. -->
+			<div class="flex flex-wrap items-center gap-2">
+				{#if canToggleOnDeck}
+					<form method="POST" action="/?/toggleOnDeck" class="contents" use:enhance>
+						<input type="hidden" name="url" value={album.url} />
+						<button
+							type="submit"
+							class="btn gap-2 btn-sm {album.onDeck ? 'btn-primary' : 'btn-outline'}"
+							aria-pressed={album.onDeck ? 'true' : 'false'}
+							title={album.onDeck
+								? 'Currently On Deck — tap to remove'
+								: 'Add to On Deck (currently listening / about to listen)'}
+						>
+							<span aria-hidden="true">🎧</span>
+							<span>{album.onDeck ? 'On Deck' : 'Add to On Deck'}</span>
+						</button>
+					</form>
+				{:else if album.onDeck}
+					<span class="badge gap-1 badge-sm badge-primary" title="On Deck">
+						<span aria-hidden="true">🎧</span>
+						On Deck
+					</span>
+				{/if}
+				{#if album.onDeck && onDeckAtDisplay}
+					<span class="text-xs text-base-content/50" title={album.onDeckAt}>
+						since {onDeckAtDisplay}
+					</span>
+				{/if}
 			</div>
 
 			<!-- Ratings strip -->

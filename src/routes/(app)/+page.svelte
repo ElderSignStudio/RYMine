@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatWishlistDate } from '$lib/dates';
@@ -54,11 +55,16 @@
 		});
 	}
 
+	// "On Deck" writes go through a server form action — hide the toggle button
+	// in readonly mode (the server also rejects with 403, so this is just UI).
+	const canToggleOnDeck = $derived(data.appMode !== 'readonly');
+
 	const visibleAlbums = $derived.by(() => {
 		const base = filterAlbums(data.albums, {
 			genre: filters.genre,
 			descriptor: filters.descriptor,
-			query: filters.query
+			query: filters.query,
+			onDeck: filters.onDeck
 		});
 
 		const sign = filters.dir === 'asc' ? 1 : -1;
@@ -70,18 +76,21 @@
 			return sign * (ax - bx);
 		}
 
+		function compareOptionalISO(ax: string | undefined, bx: string | undefined): number {
+			if (!ax && !bx) return 0;
+			if (!ax) return 1;
+			if (!bx) return -1;
+			return sign * ax.localeCompare(bx);
+		}
+
 		const sorted = [...base].sort((a, b) => {
 			if (filters.sort === 'artist') return sign * a.artist.localeCompare(b.artist);
 			if (filters.sort === 'year') return compareOptionalNumber(a.year, b.year);
 			if (filters.sort === 'rymRating') return compareOptionalNumber(a.rymRating, b.rymRating);
 			if (filters.sort === 'myRating') return compareOptionalNumber(a.myRating, b.myRating);
+			if (filters.sort === 'onDeckAt') return compareOptionalISO(a.onDeckAt, b.onDeckAt);
 			// 'added' — ISO strings sort lexicographically == chronologically
-			const ad = a.dateAdded ?? '';
-			const bd = b.dateAdded ?? '';
-			if (!ad && !bd) return 0;
-			if (!ad) return 1;
-			if (!bd) return -1;
-			return sign * ad.localeCompare(bd);
+			return compareOptionalISO(a.dateAdded, b.dateAdded);
 		});
 		return sorted;
 	});
@@ -102,7 +111,11 @@
 
 	function clearAll() {
 		searchInput = '';
-		pushFilters({ genre: null, descriptor: null, query: '' });
+		pushFilters({ genre: null, descriptor: null, query: '', onDeck: false });
+	}
+
+	function toggleOnDeckFilter() {
+		pushFilters({ onDeck: !filters.onDeck });
 	}
 
 	function pickGenreFromBadge(g: string) {
@@ -137,8 +150,8 @@
 				<p class="text-xs text-base-content/60">
 					{visibleAlbums.length}
 					{visibleAlbums.length === 1 ? 'album' : 'albums'}
-					{#if filters.genre || filters.descriptor || filters.query}match current filters{:else}in
-						wishlist{/if}
+					{#if filters.genre || filters.descriptor || filters.query || filters.onDeck}match current
+						filters{:else}in wishlist{/if}
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-1 text-xs">
@@ -183,12 +196,31 @@
 				>
 					you ★{sortArrow('myRating')}
 				</button>
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs {filters.sort === 'onDeckAt' ? 'btn-active' : ''}"
+					onclick={() => setAlbumSort('onDeckAt')}
+					title="Sort by On Deck date (most recently added first)"
+				>
+					deck{sortArrow('onDeckAt')}
+				</button>
+				<!-- On Deck filter toggle — separate from sort, visually distinct. -->
+				<button
+					type="button"
+					class="btn gap-1 btn-xs {filters.onDeck ? 'btn-primary' : 'btn-ghost'}"
+					onclick={toggleOnDeckFilter}
+					title="Show only On Deck albums"
+					aria-pressed={filters.onDeck}
+				>
+					<span aria-hidden="true">🎧</span>
+					<span>On Deck</span>
+				</button>
 				{#if hasAnyFilter(filters)}
 					<button
 						type="button"
 						class="btn ml-2 btn-ghost btn-xs"
 						onclick={clearAll}
-						title="Clear genre, descriptor, and search"
+						title="Clear genre, descriptor, search, and On Deck"
 					>
 						Clear all
 					</button>
@@ -235,11 +267,22 @@
 			{/if}
 		</label>
 
-		{#if filters.genre || filters.descriptor}
+		{#if filters.genre || filters.descriptor || filters.onDeck}
 			<!-- Compact reminder of active filters. Hidden on mobile — the
 			     sticky chip strip in the header already covers it there. -->
 			<div class="hidden flex-wrap items-center gap-1.5 text-xs text-base-content/60 lg:flex">
 				<span class="text-base-content/50">filters:</span>
+				{#if filters.onDeck}
+					<button
+						type="button"
+						class="badge gap-1 badge-sm badge-primary"
+						onclick={() => pushFilters({ onDeck: false })}
+						title="Remove On Deck filter"
+					>
+						<span aria-hidden="true">🎧</span> On Deck
+						<span aria-hidden="true">✕</span>
+					</button>
+				{/if}
 				{#if filters.genre}
 					<button
 						type="button"
@@ -333,6 +376,35 @@
 							{/if}
 						</span>
 					</a>
+					{#if canToggleOnDeck}
+						<!-- Per-row On Deck toggle. Form is a sibling of the album-link <a>
+						     so taps don't bubble into the navigation. `class="contents"`
+						     keeps the flex layout flat. use:enhance avoids a full reload
+						     and re-fetches the wishlist so the icon flips in place. -->
+						<form method="POST" action="/?/toggleOnDeck" class="contents" use:enhance>
+							<input type="hidden" name="url" value={album.url} />
+							<button
+								type="submit"
+								class="btn btn-square shrink-0 self-center btn-sm {album.onDeck
+									? 'btn-primary'
+									: 'text-base-content/40 btn-ghost hover:text-primary'}"
+								aria-pressed={album.onDeck ? 'true' : 'false'}
+								aria-label={album.onDeck ? 'Remove from On Deck' : 'Add to On Deck'}
+								title={album.onDeck ? 'On Deck — tap to remove' : 'Add to On Deck'}
+							>
+								<span aria-hidden="true">🎧</span>
+							</button>
+						</form>
+					{:else if album.onDeck}
+						<!-- Readonly viewer: show the marker but no toggle. -->
+						<span
+							class="badge gap-1 self-center badge-sm badge-primary"
+							title="On Deck"
+							aria-label="On Deck"
+						>
+							<span aria-hidden="true">🎧</span>
+						</span>
+					{/if}
 					<a
 						href={album.url}
 						target="_blank"
