@@ -148,7 +148,13 @@
 			<span aria-hidden="true">←</span>
 			<span>Back</span>
 		</a>
-		<h1 class="min-w-0 flex-1 truncate text-2xl font-semibold tracking-tight">{title}</h1>
+		<div class="min-w-0 flex-1">
+			<h1 class="truncate text-2xl font-semibold tracking-tight">{title}</h1>
+			<p class="text-sm text-base-content/55">
+				{visible.length}
+				{visible.length === 1 ? 'album' : 'albums'}
+			</p>
+		</div>
 	</header>
 
 	<!-- Sort toggle — only two options, big buttons, easy to glance at. -->
