@@ -288,6 +288,19 @@
 					</form>
 				{/if}
 
+				<!-- Car Mode entry — unobtrusive, available in both local and
+				     readonly. The page itself enforces auth in readonly via the
+				     existing root hook. -->
+				<a
+					href="/car"
+					class="btn gap-1.5 btn-ghost transition btn-sm hover:-translate-y-0.5"
+					title="Open Car Mode (mobile-friendly driving UI)"
+					aria-label="Open Car Mode"
+				>
+					<span aria-hidden="true">🚗</span>
+					<span class="hidden sm:inline">Car Mode</span>
+				</a>
+
 				<!-- Theme picker -->
 				<div class="dropdown dropdown-end">
 					<div
