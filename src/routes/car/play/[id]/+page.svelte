@@ -171,17 +171,19 @@
 			</div>
 		{/if}
 
-		{#if !hasSpotify && !hasApple}
-			<a
-				href={album.url}
-				target="_blank"
-				rel="noopener noreferrer"
-				class="car-small-btn justify-center"
-			>
-				<span>Open on Rate Your Music</span>
-				<span class="car-big-btn-arrow" aria-hidden="true">↗</span>
-			</a>
-		{/if}
+		<!-- Always-visible secondary link to the RYM page. Sits beneath the
+		     streaming actions so it's a clear "I want the album page" tap
+		     without competing with Spotify/Apple Music for visual weight. -->
+		<a
+			href={album.url}
+			target="_blank"
+			rel="noopener noreferrer"
+			class="car-small-btn justify-center"
+			title="Open this album on Rate Your Music"
+		>
+			<span>Open on Rate Your Music</span>
+			<span class="car-big-btn-arrow" aria-hidden="true">↗</span>
+		</a>
 	</div>
 </main>
 
