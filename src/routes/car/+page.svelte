@@ -1,9 +1,30 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const yearLabel = $derived(`Released in ${data.currentYear}`);
+
+	// Surprise Me rolls the dice client-side. It used to be a form action
+	// (POST → 303), which the readonly hook blocks as a write — even though
+	// picking a random index from already-loaded data has no side effects.
+	// Doing it in the browser sidesteps that gate without touching the
+	// readonly write protections, and works identically in local and hosted
+	// modes since the wishlist is already loaded by the parent layout server
+	// load for everything else in /car/*.
+	function surpriseMe() {
+		const list = data.albums;
+		if (list.length === 0) {
+			// Friendly empty state — /car/list?view=recent renders the existing
+			// "No albums here yet" card with a big Back button, so we reuse it
+			// rather than minting a one-off empty surface here.
+			goto('/car/list?view=recent');
+			return;
+		}
+		const pick = list[Math.floor(Math.random() * list.length)];
+		goto(`/car/play/${pick.id}`);
+	}
 </script>
 
 <svelte:head>
@@ -33,9 +54,9 @@
 	</header>
 
 	<!-- Six big choices, full-bleed on mobile. Each is its own <a> so the entire
-	     card is the tap target. Surprise Me is a form because it picks server-
-	     side then 303s — keeping the dice on the server avoids hydrating the
-	     whole wishlist client-side just to roll. -->
+	     card is the tap target. Surprise Me is a plain client-side button —
+	     no form/POST so it works in readonly hosted mode without tripping
+	     the write-block guard. -->
 	<nav class="grid gap-3 sm:gap-4">
 		<a href="/car/list?view=deck" class="car-tile" data-tone="primary">
 			<span class="car-tile-icon" aria-hidden="true">🎧</span>
@@ -57,12 +78,10 @@
 			<span class="car-tile-label">Highest Rated</span>
 		</a>
 
-		<form method="POST" action="?/surprise">
-			<button type="submit" class="car-tile w-full">
-				<span class="car-tile-icon" aria-hidden="true">🎲</span>
-				<span class="car-tile-label">Surprise Me</span>
-			</button>
-		</form>
+		<button type="button" class="car-tile w-full" onclick={surpriseMe}>
+			<span class="car-tile-icon" aria-hidden="true">🎲</span>
+			<span class="car-tile-label">Surprise Me</span>
+		</button>
 
 		<a href="/car/genres" class="car-tile">
 			<span class="car-tile-icon" aria-hidden="true">🎼</span>
