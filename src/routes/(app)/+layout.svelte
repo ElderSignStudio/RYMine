@@ -120,7 +120,17 @@
 	}
 
 	async function clearAllFilters() {
-		const next = withChanges(filters, { genre: null, descriptor: null, query: '' });
+		const next = withChanges(filters, {
+			genre: null,
+			descriptor: null,
+			query: '',
+			onDeck: false
+		});
+		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	async function clearOnDeck() {
+		const next = withChanges(filters, { onDeck: false });
 		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
@@ -278,6 +288,19 @@
 					</form>
 				{/if}
 
+				<!-- Car Mode entry — unobtrusive, available in both local and
+				     readonly. The page itself enforces auth in readonly via the
+				     existing root hook. -->
+				<a
+					href="/car"
+					class="btn gap-1.5 btn-ghost transition btn-sm hover:-translate-y-0.5"
+					title="Open Car Mode (mobile-friendly driving UI)"
+					aria-label="Open Car Mode"
+				>
+					<span aria-hidden="true">🚗</span>
+					<span class="hidden sm:inline">Car Mode</span>
+				</a>
+
 				<!-- Theme picker -->
 				<div class="dropdown dropdown-end">
 					<div
@@ -433,10 +456,21 @@
 		<!-- Mobile-only active-filter strip. Rides along with the sticky header
 		     so it stays visible while the album list scrolls underneath.
 		     Suppressed on detail pages where it's not relevant. -->
-		{#if (filters.genre || filters.descriptor || filters.query) && !isDetailPage}
+		{#if (filters.genre || filters.descriptor || filters.query || filters.onDeck) && !isDetailPage}
 			<div class="border-t border-base-300/70 bg-base-200/85 px-3 py-1.5 lg:hidden">
 				<div class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1.5 text-xs">
 					<span class="text-base-content/50">filters:</span>
+					{#if filters.onDeck}
+						<button
+							type="button"
+							class="badge gap-1 badge-sm badge-primary"
+							onclick={clearOnDeck}
+							title="Remove On Deck filter"
+						>
+							<span aria-hidden="true">🎧</span> On Deck
+							<span aria-hidden="true">✕</span>
+						</button>
+					{/if}
 					{#if filters.genre}
 						<button
 							type="button"
@@ -846,13 +880,13 @@
 				</div>
 			</div>
 
-			{#if filters.genre || filters.descriptor || filters.query}
+			{#if filters.genre || filters.descriptor || filters.query || filters.onDeck}
 				<div class="border-t border-base-300/70 bg-base-200/40 px-3 py-2">
 					<button
 						type="button"
 						class="btn w-full btn-ghost btn-xs"
 						onclick={clearAllFilters}
-						title="Clear genre, descriptor, and search filters"
+						title="Clear genre, descriptor, search, and On Deck filters"
 					>
 						Clear filters
 					</button>

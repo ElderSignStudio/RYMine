@@ -7,6 +7,17 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
+# Load .env into the process environment so RYMINE_PUBLISH_URL,
+# RYMINE_PUBLISH_TOKEN, RYMINE_DATA_PATH, etc. reach the running server.
+# `set -a` marks all subsequent assignments for export; we narrow it again
+# right after so the rest of the script stays normal.
+if [ -f .env ]; then
+	set -a
+	# shellcheck source=/dev/null
+	. ./.env
+	set +a
+fi
+
 PORT="${RYMSCRAPER_PORT:-3000}"
 HOST="${RYMSCRAPER_HOST:-127.0.0.1}"
 URL="http://${HOST}:${PORT}"
