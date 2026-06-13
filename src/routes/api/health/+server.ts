@@ -3,26 +3,31 @@
 //
 // Returns JSON only. No secrets, no env values, no file paths. Reachable
 // without auth in readonly mode — wired through PUBLIC paths in the hook so
-// uptime checkers don't need a session cookie.
+// uptime checkers don't need a session cookie. Reports the resolved
+// `dataSource` so you can confirm Render is pulling from GitHub after a
+// redeploy, plus `cacheAgeSeconds` to spot a stuck cache.
 
 import { json } from '@sveltejs/kit';
-import { APP_MODE } from '$lib/server/appMode';
-import { readWishlistFile } from '$lib/server/wishlistStore';
+import { APP_MODE, PUBLISH_BACKEND, REMOTE_DATA_URL } from '$lib/server/appMode';
+import { loadWishlistData } from '$lib/server/wishlist';
 import type { RequestHandler } from './$types';
 
-// Read once at module load. We don't want to import package.json directly
-// (bundler quirks); the build pipeline can inject this via define later if
-// desired, but for now a static label is enough for the health payload.
 const APP_NAME = 'rymine';
 
 export const GET: RequestHandler = async () => {
-	const wishlist = await readWishlistFile();
+	const data = await loadWishlistData();
 	return json({
 		ok: true,
 		name: APP_NAME,
 		mode: APP_MODE,
-		hasData: wishlist !== null,
-		albumCount: wishlist?.albums.length ?? 0,
-		lastScrapedAt: wishlist?.lastScrapedAt ?? null
+		dataSource: data.dataSource,
+		cacheAgeSeconds: data.cacheAgeSeconds,
+		remoteUrlConfigured: REMOTE_DATA_URL.length > 0,
+		// The publish backend label only matters on the local writable side,
+		// but it's safe to expose either way (it's an enum, not a secret).
+		publishBackend: PUBLISH_BACKEND,
+		hasData: data.albums.length > 0,
+		albumCount: data.albums.length,
+		lastScrapedAt: data.lastScrapedAt || null
 	});
 };

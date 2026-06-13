@@ -631,6 +631,9 @@
 					<span>
 						Published <strong>{form.albums}</strong>
 						{form.albums === 1 ? 'album' : 'albums'} to <strong>{form.destination}</strong>
+						<span class="ml-1 badge badge-ghost badge-sm">
+							{form.backend === 'github' ? 'GitHub' : 'Render'}
+						</span>
 						<span class="opacity-70">({new Date(form.publishedAt).toLocaleString()})</span>
 					</span>
 				</div>

@@ -2,8 +2,20 @@
 <html lang="en" data-theme="coffee">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
+
+		<!-- PWA / iOS Add-to-Home-Screen support. The manifest's `start_url` is
+		     `/car`, so tapping the installed icon opens Car Mode directly. The
+		     normal `/` URL still serves the full app — both via a browser visit
+		     and via the "Full app" link inside Car Mode. -->
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<meta name="theme-color" content="#1a1815" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="RYMine" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
 		<script>
 			// Apply persisted theme before first paint to avoid a flash.
 			// Mirror the THEMES list in src/lib/theme.svelte.ts.
