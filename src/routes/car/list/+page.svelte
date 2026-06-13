@@ -193,9 +193,13 @@
 				<li>
 					<a href={playHref(album.id)} class="car-album-card">
 						<span class="car-cover" aria-hidden="true">
-							{#if album.coverUrl || album.largeCoverUrl}
+							{#if album.largeCoverUrl || album.coverUrl}
+								<!-- Prefer the high-res enriched cover; the tiny RYM-row
+								     thumbnail (coverUrl) is the fallback for albums not
+								     enriched yet. The 80–96px Car Mode tiles look
+								     blurry on Retina with only the small URL. -->
 								<img
-									src={album.coverUrl ?? album.largeCoverUrl}
+									src={album.largeCoverUrl ?? album.coverUrl}
 									alt=""
 									loading="lazy"
 									decoding="async"
