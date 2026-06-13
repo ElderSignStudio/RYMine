@@ -43,17 +43,24 @@ Create a new **Web Service** on Render and point it at your repo.
 Set these in the service's **Environment** tab. All but `BODY_SIZE_LIMIT` are
 required for the hosted viewer to work.
 
-| Var                      | Value                                            | Notes                                                                                                                |
-| ------------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `RYMINE_MODE`            | `readonly`                                       | Required. The server refuses to boot in readonly without a password.                                                 |
-| `RYMINE_VIEWER_PASSWORD` | _(your long secret)_                             | Required. What you type at `/login`.                                                                                 |
-| `RYMINE_PUBLISH_TOKEN`   | _(your long secret)_                             | Required. Bearer token gating `POST /api/publish`. Must match the local app's value.                                 |
-| `HOST`                   | `0.0.0.0`                                        | adapter-node binds here. Render needs `0.0.0.0`, not `127.0.0.1`.                                                    |
-| `ORIGIN`                 | `https://<your-service>.onrender.com`            | Required for SvelteKit CSRF acceptance on form posts (login, publish-from-local). Must match the public URL exactly. |
-| `BODY_SIZE_LIMIT`        | `5000000` (≈ 5 MB) or higher                     | Optional. adapter-node defaults to 512 KB; raise this to comfortably exceed your wishlist JSON size.                 |
-| `RYMINE_DATA_PATH`       | `/var/data/wishlist.json` (with a disk attached) | Optional. See the persistent-data section below.                                                                     |
+| Var                                | Value                                                                                  | Notes                                                                                                                                                   |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RYMINE_MODE`                      | `readonly`                                                                             | Required. The server refuses to boot in readonly without a password.                                                                                    |
+| `RYMINE_VIEWER_PASSWORD`           | _(your long secret)_                                                                   | Required. What you type at `/login`.                                                                                                                    |
+| `RYMINE_REMOTE_DATA_URL`           | `https://raw.githubusercontent.com/ElderSignStudio/RYMineData/main/data/wishlist.json` | **Recommended.** When set, the viewer reads wishlist JSON from this URL instead of the local filesystem — Render sleep/restart can't lose data anymore. |
+| `RYMINE_REMOTE_DATA_CACHE_SECONDS` | `300`                                                                                  | Optional. In-memory cache TTL. Default 300s. Tune down for faster propagation after a publish, up to reduce GitHub hits.                                |
+| `HOST`                             | `0.0.0.0`                                                                              | adapter-node binds here. Render needs `0.0.0.0`, not `127.0.0.1`.                                                                                       |
+| `ORIGIN`                           | `https://<your-service>.onrender.com`                                                  | Required for SvelteKit CSRF acceptance on form posts (login). Must match the public URL exactly.                                                        |
+| `BODY_SIZE_LIMIT`                  | `5000000` (≈ 5 MB) or higher                                                           | Optional but recommended if you ever fall back to `/api/publish`.                                                                                       |
+| `RYMINE_DATA_PATH`                 | `/var/data/wishlist.json` (with a disk attached)                                       | Optional. Only matters when `RYMINE_REMOTE_DATA_URL` is unset.                                                                                          |
+| `RYMINE_PUBLISH_TOKEN`             | _(your long secret)_                                                                   | Optional / legacy. Only needed if you still want to accept direct `POST /api/publish` pushes from the local Render-backed flow.                         |
 
 **Do not set `PORT` yourself** — Render injects it.
+
+> **Note:** With `RYMINE_REMOTE_DATA_URL` set, you no longer need
+> `RYMINE_PUBLISH_TOKEN` on Render unless you're keeping the legacy direct
+> publish flow alive. The new pipeline pushes to GitHub from your laptop;
+> Render only reads.
 
 ---
 
@@ -129,10 +136,16 @@ list with a small `read-only` badge in the header.
 
 ## Configure your local app to publish
 
+> **Recommended:** Use the new GitHub-backed publish flow instead. It avoids
+> the Render filesystem entirely, so free-tier sleep can't lose data. See
+> [PUBLISH_GITHUB.md](./PUBLISH_GITHUB.md). The legacy direct-to-Render flow
+> below is kept working but no longer the default.
+
 In your local RYMine repo, edit `.env`:
 
 ```
 RYMINE_MODE=local
+RYMINE_PUBLISH_BACKEND=render
 RYMINE_PUBLISH_URL=https://<your-service>.onrender.com/api/publish
 RYMINE_PUBLISH_TOKEN=<same long secret as on Render>
 ```
