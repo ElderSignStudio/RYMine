@@ -1,8 +1,8 @@
 import { fail } from '@sveltejs/kit';
-import { assertWritableMode, CAN_SEND_PUBLISH, PUBLISH_URL } from '$lib/server/appMode';
+import { assertWritableMode, CAN_SEND_PUBLISH } from '$lib/server/appMode';
 import { processImport } from '$lib/server/import';
 import { toggleAlbumOnDeck } from '$lib/server/onDeck';
-import { publishToRemote } from '$lib/server/publish';
+import { publishWishlist } from '$lib/server/publish';
 import { parseWishlistHtml } from '$lib/server/parseWishlistHtml';
 import { readWishlistFile } from '$lib/server/wishlistStore';
 import {
@@ -177,11 +177,11 @@ export const actions: Actions = {
 		if (!CAN_SEND_PUBLISH) {
 			return fail(400, {
 				error:
-					'Publish is not configured. Set RYMINE_PUBLISH_URL and RYMINE_PUBLISH_TOKEN in this app .env, then restart.'
+					'Publish is not configured. Either set GitHub vars (RYMINE_GITHUB_OWNER, RYMINE_GITHUB_REPO, RYMINE_GITHUB_TOKEN) or legacy Render vars (RYMINE_PUBLISH_URL + RYMINE_PUBLISH_TOKEN) in this app .env, then restart.'
 			});
 		}
 
-		const outcome = await publishToRemote();
+		const outcome = await publishWishlist();
 		if (!outcome.ok) {
 			return fail(outcome.status ?? 502, { error: outcome.error });
 		}
@@ -190,14 +190,11 @@ export const actions: Actions = {
 			publishSuccess: true as const,
 			albums: outcome.albums,
 			publishedAt: outcome.publishedAt,
-			// Render-safe display of the destination — host only, no token.
-			destination: (() => {
-				try {
-					return new URL(PUBLISH_URL).host;
-				} catch {
-					return PUBLISH_URL;
-				}
-			})()
+			// Backend-aware destination label. For GitHub: "owner/repo". For
+			// Render: hostname only (no token, no path). Tokens never leave
+			// the server — neither value here contains anything sensitive.
+			destination: outcome.destination,
+			backend: outcome.backend
 		};
 	}
 };

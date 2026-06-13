@@ -37,20 +37,90 @@ if (IS_READONLY && VIEWER_PASSWORD.length === 0) {
 	);
 }
 
-// ── Publish channel ─────────────────────────────────────────────────────────
-// `RYMINE_PUBLISH_TOKEN` is the shared secret between local writable and
-// hosted readonly. On the readonly side it gates POST /api/publish; on the
-// local side it goes into the Authorization header of the outbound publish.
-// `RYMINE_PUBLISH_URL` is only used by the local sender — the full URL of
-// the hosted /api/publish endpoint.
+// ── Publish channel — legacy Render direct-push ─────────────────────────────
+// Kept fully working as a fallback while we transition to the GitHub-backed
+// pipeline below. `RYMINE_PUBLISH_TOKEN` is the shared secret between local
+// writable and hosted readonly. On the readonly side it gates POST
+// /api/publish; on the local side it goes into the Authorization header of
+// the outbound Render publish. `RYMINE_PUBLISH_URL` is only used by the
+// local sender — the full URL of the hosted /api/publish endpoint.
 const PUBLISH_TOKEN = process.env.RYMINE_PUBLISH_TOKEN ?? '';
 export const PUBLISH_URL = process.env.RYMINE_PUBLISH_URL ?? '';
 
 /** True iff the current process has the env to act as a publish *receiver*. */
 export const CAN_RECEIVE_PUBLISH = IS_READONLY && PUBLISH_TOKEN.length > 0;
 
+// ── Publish channel — GitHub Contents API ───────────────────────────────────
+// New backend (preferred). Local writable RYMine pushes the wishlist JSON
+// to a public GitHub data repo via the Contents API; the hosted readonly
+// viewer reads the raw GitHub URL on the other side. This survives Render
+// free-tier sleep/restart because the source of truth lives outside Render.
+//
+// Token must be a fine-grained PAT with `Contents: read/write` on the data
+// repo. It stays SERVER-ONLY — never exported to the client, never logged.
+const GITHUB_OWNER = process.env.RYMINE_GITHUB_OWNER ?? '';
+const GITHUB_REPO = process.env.RYMINE_GITHUB_REPO ?? '';
+const GITHUB_BRANCH = (process.env.RYMINE_GITHUB_BRANCH ?? 'main').trim() || 'main';
+const GITHUB_PATH = (process.env.RYMINE_GITHUB_PATH ?? 'data/wishlist.json').trim();
+const GITHUB_TOKEN = process.env.RYMINE_GITHUB_TOKEN ?? '';
+
+export const GITHUB_CONFIG = {
+	owner: GITHUB_OWNER,
+	repo: GITHUB_REPO,
+	branch: GITHUB_BRANCH,
+	path: GITHUB_PATH
+};
+
+/** Token value for the GitHub publish backend. Server-only. */
+export function githubTokenForSending(): string {
+	return GITHUB_TOKEN;
+}
+
+const HAS_GITHUB_CONFIG =
+	GITHUB_OWNER.length > 0 && GITHUB_REPO.length > 0 && GITHUB_TOKEN.length > 0;
+const HAS_RENDER_PUBLISH_CONFIG = PUBLISH_URL.length > 0 && PUBLISH_TOKEN.length > 0;
+
+// ── Resolved publish backend ────────────────────────────────────────────────
+// Explicit override via RYMINE_PUBLISH_BACKEND wins. Otherwise: GitHub if its
+// env is complete, then Render if its env is complete, else nothing. We only
+// resolve in local mode — the readonly side doesn't publish.
+
+export type PublishBackend = 'github' | 'render' | 'none';
+
+function resolvePublishBackend(): PublishBackend {
+	if (!IS_LOCAL) return 'none';
+	const raw = (process.env.RYMINE_PUBLISH_BACKEND ?? '').toLowerCase().trim();
+	if (raw === 'github') return 'github';
+	if (raw === 'render') return 'render';
+	if (raw === 'none') return 'none';
+	if (raw.length > 0) {
+		throw new Error(`RYMINE_PUBLISH_BACKEND must be 'github', 'render', or 'none' (got '${raw}').`);
+	}
+	if (HAS_GITHUB_CONFIG) return 'github';
+	if (HAS_RENDER_PUBLISH_CONFIG) return 'render';
+	return 'none';
+}
+
+export const PUBLISH_BACKEND: PublishBackend = resolvePublishBackend();
+
 /** True iff the current process has the env to act as a publish *sender*. */
-export const CAN_SEND_PUBLISH = IS_LOCAL && PUBLISH_URL.length > 0 && PUBLISH_TOKEN.length > 0;
+export const CAN_SEND_PUBLISH = IS_LOCAL && PUBLISH_BACKEND !== 'none';
+
+// ── Remote data source (readonly side) ──────────────────────────────────────
+// In readonly mode the viewer reads its wishlist JSON from this URL when
+// configured. Typically the raw GitHub URL for the data repo, but any
+// reachable, CORS-irrelevant (we fetch server-side), public JSON works. The
+// fetched payload is validated with the same shape check used by /api/publish
+// before it goes into the cache, so a bad commit can't poison the viewer.
+export const REMOTE_DATA_URL = (process.env.RYMINE_REMOTE_DATA_URL ?? '').trim();
+
+const DEFAULT_REMOTE_CACHE_SECONDS = 300;
+export const REMOTE_DATA_CACHE_SECONDS = (() => {
+	const raw = process.env.RYMINE_REMOTE_DATA_CACHE_SECONDS;
+	if (!raw) return DEFAULT_REMOTE_CACHE_SECONDS;
+	const n = Number.parseInt(raw, 10);
+	return Number.isFinite(n) && n >= 0 ? n : DEFAULT_REMOTE_CACHE_SECONDS;
+})();
 
 /**
  * Constant-time string comparison. Plain === can leak the password length /
