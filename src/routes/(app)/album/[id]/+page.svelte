@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { formatWishlistDate } from '$lib/dates';
+	import { openExternal } from '$lib/openExternal';
 	import { starString } from '$lib/stars';
 	import {
 		STREAMING_ORDER,
@@ -81,6 +82,7 @@
 			class="ml-auto shrink-0 text-xs text-base-content/40 transition hover:text-primary"
 			aria-label="Open on Rate Your Music"
 			title="Open on Rate Your Music"
+			onclick={(e) => openExternal(album.url, e)}
 		>
 			↗
 		</a>
@@ -287,6 +289,7 @@
 			target="_blank"
 			rel="noopener noreferrer"
 			class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md"
+			onclick={(e) => openExternal(album.url, e)}
 		>
 			Open on Rate Your Music ↗
 		</a>
