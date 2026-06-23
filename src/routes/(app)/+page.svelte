@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatWishlistDate } from '$lib/dates';
+	import { openExternal } from '$lib/openExternal';
 	import {
 		type AlbumSort,
 		buildFiltersURL,
@@ -412,6 +413,7 @@
 						class="shrink-0 self-center text-xs text-base-content/30 transition group-hover:text-primary/70 hover:text-primary"
 						aria-label="Open on Rate Your Music"
 						title="Open on Rate Your Music"
+						onclick={(e) => openExternal(album.url, e)}
 					>
 						↗
 					</a>

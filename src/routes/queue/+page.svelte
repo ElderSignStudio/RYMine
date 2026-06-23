@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { formatWishlistDate } from '$lib/dates';
+	import { openExternal } from '$lib/openExternal';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -177,6 +178,7 @@
 									class="shrink-0 text-xs text-base-content/40 transition hover:text-primary"
 									aria-label="Open on Rate Your Music"
 									title="Open this album on Rate Your Music"
+									onclick={(e) => openExternal(a.url, e)}
 								>
 									↗
 								</a>

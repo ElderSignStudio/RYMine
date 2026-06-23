@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { openExternal } from '$lib/openExternal';
 	import { STREAMING_SERVICES, appHref, type StreamingKey } from '$lib/streaming';
 	import type { PageData } from './$types';
 
@@ -180,6 +181,7 @@
 			rel="noopener noreferrer"
 			class="car-small-btn justify-center"
 			title="Open this album on Rate Your Music"
+			onclick={(e) => openExternal(album.url, e)}
 		>
 			<span>Open on Rate Your Music</span>
 			<span class="car-big-btn-arrow" aria-hidden="true">↗</span>
