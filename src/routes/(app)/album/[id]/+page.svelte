@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { copyText } from '$lib/clipboard';
+	import RymLink from '$lib/components/RymLink.svelte';
 	import { formatWishlistDate } from '$lib/dates';
-	import { openExternal } from '$lib/openExternal';
+	import { isIOS } from '$lib/ios.svelte';
+	import { chromeSchemeUrl } from '$lib/rymLink';
 	import { starString } from '$lib/stars';
 	import {
 		STREAMING_ORDER,
@@ -45,6 +48,17 @@
 	const myStars = $derived(starString(album.myRating));
 	const showStreaming = $derived(hasAnyStreamingLink(album.streamingLinks));
 
+	// On iOS the footer action becomes "Open RYM in Chrome" plus quieter Safari
+	// and copy fallbacks, because Safari can't render RYM release pages at all
+	// (see $lib/rymLink). Off iOS it stays the single link it has always been.
+	const ios = $derived(isIOS());
+	const chromeHref = $derived(chromeSchemeUrl(album.url));
+
+	let copied = $state(false);
+	async function copyRymLink() {
+		copied = await copyText(album.url);
+	}
+
 	// When the user comes back from a RYM tab after running the enrich
 	// bookmarklet, re-fetch so the new fields appear without a manual reload.
 	$effect(() => {
@@ -75,17 +89,14 @@
 		<span class="ml-1 truncate text-xs text-base-content/50" title={album.url}>
 			{album.url.replace(/^https?:\/\//, '')}
 		</span>
-		<a
-			href={album.url}
-			target="_blank"
-			rel="noopener noreferrer"
+		<RymLink
+			url={album.url}
 			class="ml-auto shrink-0 text-xs text-base-content/40 transition hover:text-primary"
-			aria-label="Open on Rate Your Music"
+			ariaLabel="Open on Rate Your Music"
 			title="Open on Rate Your Music"
-			onclick={(e) => openExternal(album.url, e)}
 		>
 			↗
-		</a>
+		</RymLink>
 	</div>
 
 	<!-- Detail body: large cover + info side-by-side on desktop, stacked on mobile -->
@@ -284,15 +295,34 @@
 		class="flex flex-wrap items-center gap-3 border-t border-base-300/60 bg-base-200/30 px-5 py-4 sm:px-6"
 	>
 		<a href="/" class="btn btn-ghost btn-sm">← Back to list</a>
-		<a
-			href={album.url}
-			target="_blank"
-			rel="noopener noreferrer"
-			class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md"
-			onclick={(e) => openExternal(album.url, e)}
-		>
-			Open on Rate Your Music ↗
-		</a>
+		{#if ios}
+			<!-- iPhone/iPad: Chrome is the only browser that renders RYM release
+			     pages, so it's the primary action. Safari and copy stay visible
+			     as fallbacks for the case where Chrome isn't installed — nothing
+			     here depends on detecting that. -->
+			<a
+				href={chromeHref}
+				rel="noopener noreferrer"
+				class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md"
+			>
+				Open RYM in Chrome ↗
+			</a>
+			<a href={album.url} target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">
+				Open in Safari
+			</a>
+			<button type="button" class="btn btn-ghost btn-sm" onclick={copyRymLink}>
+				{copied ? '✓ Link copied' : 'Copy RYM link'}
+			</button>
+		{:else}
+			<a
+				href={album.url}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="btn shadow-sm transition btn-sm btn-primary hover:-translate-y-0.5 hover:shadow-md"
+			>
+				Open on Rate Your Music ↗
+			</a>
+		{/if}
 		<a href="/queue" class="btn btn-ghost btn-sm">Enrichment queue →</a>
 	</div>
 

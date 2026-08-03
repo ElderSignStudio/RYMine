@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { openExternal } from '$lib/openExternal';
+	import { copyText } from '$lib/clipboard';
+	import { isIOS } from '$lib/ios.svelte';
+	import { chromeSchemeUrl } from '$lib/rymLink';
 	import { STREAMING_SERVICES, appHref, type StreamingKey } from '$lib/streaming';
 	import type { PageData } from './$types';
 
@@ -47,6 +49,17 @@
 		} else {
 			goto('/car');
 		}
+	}
+
+	// iPhone/iPad get a Chrome handoff for the RYM link — Safari renders RYM
+	// release pages blank (see $lib/rymLink). Streaming buttons above are
+	// unaffected; they open fine in Safari.
+	const ios = $derived(isIOS());
+	const chromeHref = $derived(chromeSchemeUrl(album.url));
+
+	let copied = $state(false);
+	async function copyRymLink() {
+		copied = await copyText(album.url);
 	}
 </script>
 
@@ -175,17 +188,42 @@
 		<!-- Always-visible secondary link to the RYM page. Sits beneath the
 		     streaming actions so it's a clear "I want the album page" tap
 		     without competing with Spotify/Apple Music for visual weight. -->
-		<a
-			href={album.url}
-			target="_blank"
-			rel="noopener noreferrer"
-			class="car-small-btn justify-center"
-			title="Open this album on Rate Your Music"
-			onclick={(e) => openExternal(album.url, e)}
-		>
-			<span>Open on Rate Your Music</span>
-			<span class="car-big-btn-arrow" aria-hidden="true">↗</span>
-		</a>
+		{#if ios}
+			<!-- iPhone/iPad: Chrome gets the big thumb-sized button because it's
+			     the only browser that renders RYM release pages. Safari and copy
+			     sit underneath as small, always-visible fallbacks for when
+			     Chrome isn't installed — no timers, no detection. -->
+			<a href={chromeHref} rel="noopener noreferrer" class="car-big-btn">
+				<span class="car-big-btn-dot bg-amber-500" aria-hidden="true"></span>
+				<span class="car-big-btn-label">Open RYM in Chrome</span>
+				<span class="car-big-btn-arrow" aria-hidden="true">↗</span>
+			</a>
+			<div class="flex flex-wrap justify-center gap-2">
+				<a
+					href={album.url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="car-small-btn"
+					title="Open this album on Rate Your Music in Safari"
+				>
+					<span>Open in Safari</span>
+				</a>
+				<button type="button" class="car-small-btn" onclick={copyRymLink}>
+					<span>{copied ? '✓ Link copied' : 'Copy RYM link'}</span>
+				</button>
+			</div>
+		{:else}
+			<a
+				href={album.url}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="car-small-btn justify-center"
+				title="Open this album on Rate Your Music"
+			>
+				<span>Open on Rate Your Music</span>
+				<span class="car-big-btn-arrow" aria-hidden="true">↗</span>
+			</a>
+		{/if}
 	</div>
 </main>
 
