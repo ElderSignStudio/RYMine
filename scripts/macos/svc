@@ -1,0 +1,173 @@
+#!/bin/bash
+# Dispatcher for the RYMine LaunchAgent. Targets gui/$UID — the per-user
+# domain — so nothing here needs sudo, and the agent only runs while
+# you're logged in.
+#
+# Usage:
+#   scripts/macos/svc install     copy plist + load + auto-start at login
+#   scripts/macos/svc uninstall   unload + remove plist
+#   scripts/macos/svc start       load if not loaded
+#   scripts/macos/svc stop        unload
+#   scripts/macos/svc restart     stop + start
+#   scripts/macos/svc status      launchctl print + health + log tail
+#   scripts/macos/svc open        open RYMine in the browser
+#
+# All commands are idempotent — running the same one twice is safe.
+
+set -e
+set -u
+
+LABEL="com.rymine.local"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+TEMPLATE_PATH="$SCRIPT_DIR/$LABEL.plist.template"
+PLIST_PATH="$HOME/Library/LaunchAgents/$LABEL.plist"
+LOGS_DIR="$PROJECT_DIR/logs"
+DOMAIN="gui/$UID"
+TARGET="$DOMAIN/$LABEL"
+
+PORT="${RYMINE_PORT:-3000}"
+URL="http://127.0.0.1:$PORT"
+
+is_loaded() {
+	launchctl print "$TARGET" >/dev/null 2>&1
+}
+
+# Render the plist template into ~/Library/LaunchAgents/, substituting in
+# the absolute project path and the node bin dir we detected on the caller's
+# PATH. We re-render every install so the plist stays in sync if the repo
+# moved or node was reinstalled to a different prefix.
+render_plist() {
+	if [ ! -f "$TEMPLATE_PATH" ]; then
+		echo "missing template: $TEMPLATE_PATH" >&2
+		exit 1
+	fi
+
+	local node_path node_bin_dir
+	node_path="$(command -v node || true)"
+	if [ -z "$node_path" ] || [ ! -x "$node_path" ]; then
+		echo "node not found in PATH. Install Node.js (Homebrew, nvm, or the official installer) and retry." >&2
+		exit 1
+	fi
+	node_bin_dir="$(dirname "$node_path")"
+
+	mkdir -p "$(dirname "$PLIST_PATH")"
+	mkdir -p "$LOGS_DIR"
+
+	# macOS sed is BSD-y — use `|` as the delimiter so absolute paths with
+	# slashes don't collide.
+	sed -e "s|{{PROJECT_DIR}}|$PROJECT_DIR|g" \
+		-e "s|{{NODE_BIN_DIR}}|$node_bin_dir|g" \
+		"$TEMPLATE_PATH" > "$PLIST_PATH"
+}
+
+cmd_install() {
+	render_plist
+	if is_loaded; then
+		echo "Refreshing existing agent…"
+		launchctl bootout "$DOMAIN" "$PLIST_PATH" 2>/dev/null || true
+	fi
+	launchctl bootstrap "$DOMAIN" "$PLIST_PATH"
+	launchctl enable "$TARGET" 2>/dev/null || true
+	echo "Installed and started: $LABEL"
+	echo "  plist:  $PLIST_PATH"
+	echo "  logs:   $LOGS_DIR/rymine.log"
+	echo "          $LOGS_DIR/rymine.err.log"
+	echo "  URL:    $URL"
+	echo ""
+	echo "Auto-starts on next login. \"$0 open\" to launch the browser now."
+}
+
+cmd_uninstall() {
+	if is_loaded; then
+		launchctl bootout "$DOMAIN" "$PLIST_PATH" 2>/dev/null || true
+		echo "Stopped agent."
+	fi
+	if [ -f "$PLIST_PATH" ]; then
+		rm -f "$PLIST_PATH"
+		echo "Removed plist: $PLIST_PATH"
+	fi
+	echo "Uninstalled. Logs in $LOGS_DIR left in place — delete by hand if you want."
+}
+
+cmd_start() {
+	if [ ! -f "$PLIST_PATH" ]; then
+		echo "Not installed yet — run: $0 install" >&2
+		exit 1
+	fi
+	if is_loaded; then
+		echo "Already loaded. Kicking to restart the worker…"
+		launchctl kickstart -k "$TARGET" >/dev/null 2>&1 || true
+	else
+		launchctl bootstrap "$DOMAIN" "$PLIST_PATH"
+	fi
+	echo "Started. URL: $URL"
+}
+
+cmd_stop() {
+	if is_loaded; then
+		launchctl bootout "$DOMAIN" "$PLIST_PATH" 2>/dev/null || true
+		echo "Stopped."
+	else
+		echo "Not running."
+	fi
+}
+
+cmd_restart() {
+	cmd_stop
+	# Give launchd a beat to release the port before we re-bootstrap.
+	sleep 1
+	cmd_start
+}
+
+cmd_status() {
+	echo "label:       $LABEL"
+	if [ -f "$PLIST_PATH" ]; then
+		echo "plist:       $PLIST_PATH (present)"
+	else
+		echo "plist:       $PLIST_PATH (missing — run \"$0 install\")"
+	fi
+	if is_loaded; then
+		local pid
+		pid="$(launchctl print "$TARGET" 2>/dev/null | awk -F'=' '/^[[:space:]]*pid[[:space:]]*=/ {gsub(/ /,"",$2); print $2}' | head -1)"
+		echo "agent:       loaded (pid ${pid:-unknown})"
+	else
+		echo "agent:       not loaded"
+	fi
+	if lsof -ti :"$PORT" >/dev/null 2>&1; then
+		echo "port $PORT:    bound"
+	else
+		echo "port $PORT:    free"
+	fi
+	echo ""
+	if curl -fs --max-time 2 "$URL/api/health" >/dev/null 2>&1; then
+		echo "health ($URL/api/health):"
+		curl -fs --max-time 2 "$URL/api/health" | sed 's/^/  /'
+		echo ""
+	else
+		echo "health:      no response on $URL (server may be starting, missing build, or stopped)"
+	fi
+	if [ -f "$LOGS_DIR/rymine.err.log" ] && [ -s "$LOGS_DIR/rymine.err.log" ]; then
+		echo ""
+		echo "tail $LOGS_DIR/rymine.err.log:"
+		tail -n 5 "$LOGS_DIR/rymine.err.log" | sed 's/^/  /'
+	fi
+}
+
+cmd_open() {
+	open "$URL"
+}
+
+case "${1:-}" in
+	install)   cmd_install ;;
+	uninstall) cmd_uninstall ;;
+	start)     cmd_start ;;
+	stop)      cmd_stop ;;
+	restart)   cmd_restart ;;
+	status)    cmd_status ;;
+	open)      cmd_open ;;
+	*)
+		echo "Usage: $0 {install|uninstall|start|stop|restart|status|open}" >&2
+		exit 1
+		;;
+esac

@@ -11,9 +11,17 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:rymlink": "tsx scripts/checkRymLink.ts",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"svc:install": "bash scripts/macos/svc install",
+		"svc:uninstall": "bash scripts/macos/svc uninstall",
+		"svc:start": "bash scripts/macos/svc start",
+		"svc:stop": "bash scripts/macos/svc stop",
+		"svc:restart": "bash scripts/macos/svc restart",
+		"svc:status": "bash scripts/macos/svc status",
+		"svc:open": "bash scripts/macos/svc open"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.4",
