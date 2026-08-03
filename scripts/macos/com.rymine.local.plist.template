@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+	LaunchAgent template for the local writable RYMine. The `svc install`
+	dispatcher fills in {{PROJECT_DIR}} (absolute path to this repo on the
+	install user's machine) and {{NODE_BIN_DIR}} (parent of the `node` binary
+	the install user has on PATH — Homebrew, nvm, or system) at install time,
+	then drops the rendered file at ~/Library/LaunchAgents/com.rymine.local.plist
+	and `launchctl bootstrap`s it.
+
+	Why per-user gui/$UID? No sudo required, the agent only runs while you're
+	logged in, and the WorkingDirectory + log paths can sit inside the repo
+	you already own.
+
+	Why KeepAlive { SuccessfulExit = false }? We want auto-restart on crash
+	but NOT on clean exits — that's how `svc stop` (SIGTERM → graceful exit)
+	and the port-collision step-aside in rymine-launcher.sh both avoid a
+	thrash loop.
+-->
+<plist version="1.0">
+	<dict>
+		<key>Label</key>
+		<string>com.rymine.local</string>
+
+		<key>ProgramArguments</key>
+		<array>
+			<string>/bin/bash</string>
+			<string>{{PROJECT_DIR}}/scripts/macos/rymine-launcher.sh</string>
+		</array>
+
+		<key>WorkingDirectory</key>
+		<string>{{PROJECT_DIR}}</string>
+
+		<key>EnvironmentVariables</key>
+		<dict>
+			<!-- launchd hands GUI-domain agents a stripped PATH; we restore
+			     enough to find node/npm/lsof on a typical macOS. -->
+			<key>PATH</key>
+			<string>{{NODE_BIN_DIR}}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		</dict>
+
+		<key>StandardOutPath</key>
+		<string>{{PROJECT_DIR}}/logs/rymine.log</string>
+		<key>StandardErrorPath</key>
+		<string>{{PROJECT_DIR}}/logs/rymine.err.log</string>
+
+		<key>RunAtLoad</key>
+		<true/>
+
+		<key>KeepAlive</key>
+		<dict>
+			<key>SuccessfulExit</key>
+			<false/>
+		</dict>
+
+		<key>ProcessType</key>
+		<string>Background</string>
+	</dict>
+</plist>
