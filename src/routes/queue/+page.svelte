@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import RymLink from '$lib/components/RymLink.svelte';
 	import { formatWishlistDate } from '$lib/dates';
-	import { openExternal } from '$lib/openExternal';
+	import { isIOS } from '$lib/ios.svelte';
+	import { chromeSchemeUrl } from '$lib/rymLink';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -14,6 +16,13 @@
 		const next = unenriched[0];
 		if (!next) return;
 		// User-driven, one at a time. We never auto-open multiple tabs.
+		// On iOS, hand off to Chrome — Safari renders RYM release pages blank
+		// (see $lib/rymLink). The scheme handoff leaves this page in place, so
+		// there's no new tab to open here.
+		if (isIOS()) {
+			window.location.href = chromeSchemeUrl(next.url);
+			return;
+		}
 		window.open(next.url, '_blank', 'noopener,noreferrer');
 	}
 
@@ -171,17 +180,14 @@
 										<span class="ml-1 text-base-content/50">({a.year})</span>
 									{/if}
 								</a>
-								<a
-									href={a.url}
-									target="_blank"
-									rel="noopener noreferrer"
+								<RymLink
+									url={a.url}
 									class="shrink-0 text-xs text-base-content/40 transition hover:text-primary"
-									aria-label="Open on Rate Your Music"
+									ariaLabel="Open on Rate Your Music"
 									title="Open this album on Rate Your Music"
-									onclick={(e) => openExternal(a.url, e)}
 								>
 									↗
-								</a>
+								</RymLink>
 							</div>
 							<div class="mt-1 flex flex-wrap gap-1 pl-9">
 								{#each missingChips(a) as chip (chip)}

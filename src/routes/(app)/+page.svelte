@@ -3,8 +3,8 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import RymLink from '$lib/components/RymLink.svelte';
 	import { formatWishlistDate } from '$lib/dates';
-	import { openExternal } from '$lib/openExternal';
 	import {
 		type AlbumSort,
 		buildFiltersURL,
@@ -406,17 +406,14 @@
 							<span aria-hidden="true">🎧</span>
 						</span>
 					{/if}
-					<a
-						href={album.url}
-						target="_blank"
-						rel="noopener noreferrer"
+					<RymLink
+						url={album.url}
 						class="shrink-0 self-center text-xs text-base-content/30 transition group-hover:text-primary/70 hover:text-primary"
-						aria-label="Open on Rate Your Music"
+						ariaLabel="Open on Rate Your Music"
 						title="Open on Rate Your Music"
-						onclick={(e) => openExternal(album.url, e)}
 					>
 						↗
-					</a>
+					</RymLink>
 				</div>
 				<div class="flex flex-wrap items-center gap-1 px-4 pb-3 pl-23">
 					{#each split.primary as g (g)}
