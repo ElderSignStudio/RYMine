@@ -9,6 +9,7 @@
 
 import { json } from '@sveltejs/kit';
 import { APP_MODE, PUBLISH_BACKEND, REMOTE_DATA_URL } from '$lib/server/appMode';
+import { BUILD_INFO } from '$lib/server/buildInfo';
 import { loadWishlistData } from '$lib/server/wishlist';
 import type { RequestHandler } from './$types';
 
@@ -16,18 +17,31 @@ const APP_NAME = 'rymine';
 
 export const GET: RequestHandler = async () => {
 	const data = await loadWishlistData();
-	return json({
-		ok: true,
-		name: APP_NAME,
-		mode: APP_MODE,
-		dataSource: data.dataSource,
-		cacheAgeSeconds: data.cacheAgeSeconds,
-		remoteUrlConfigured: REMOTE_DATA_URL.length > 0,
-		// The publish backend label only matters on the local writable side,
-		// but it's safe to expose either way (it's an enum, not a secret).
-		publishBackend: PUBLISH_BACKEND,
-		hasData: data.albums.length > 0,
-		albumCount: data.albums.length,
-		lastScrapedAt: data.lastScrapedAt || null
-	});
+	return json(
+		{
+			ok: true,
+			name: APP_NAME,
+			// Version + commit are the whole point of probing this after a deploy:
+			// `commit` changes on every push even when `version` hasn't moved.
+			version: BUILD_INFO.version,
+			commit: BUILD_INFO.commit,
+			buildTime: BUILD_INFO.buildTime,
+			mode: APP_MODE,
+			dataSource: data.dataSource,
+			cacheAgeSeconds: data.cacheAgeSeconds,
+			remoteUrlConfigured: REMOTE_DATA_URL.length > 0,
+			// The publish backend label only matters on the local writable side,
+			// but it's safe to expose either way (it's an enum, not a secret).
+			publishBackend: PUBLISH_BACKEND,
+			hasData: data.albums.length > 0,
+			albumCount: data.albums.length,
+			lastScrapedAt: data.lastScrapedAt || null
+		},
+		{
+			// Never cache this. A CDN or browser holding onto a previous
+			// response is exactly how you end up believing an old build is
+			// still live — which defeats the point of reporting the commit.
+			headers: { 'cache-control': 'no-store, max-age=0' }
+		}
+	);
 };

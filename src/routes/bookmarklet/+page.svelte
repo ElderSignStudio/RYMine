@@ -1,4 +1,5 @@
 <script lang="ts">
+	import VersionLabel from '$lib/components/VersionLabel.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -257,5 +258,6 @@
 
 	<footer class="border-t border-base-300/60 py-3 text-center text-xs text-base-content/40">
 		local-only · JSON-backed · same DOM your real browser is already showing
+		<VersionLabel build={data.build} class="mt-1 block text-[0.7rem] text-base-content/30" />
 	</footer>
 </div>
