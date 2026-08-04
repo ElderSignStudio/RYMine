@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll, goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import VersionLabel from '$lib/components/VersionLabel.svelte';
 	import { buildFiltersURL, filterAlbums, parseFilters, withChanges } from '$lib/filters';
 	import { descriptorCounts, formatLastScraped, genreCounts } from '$lib/genres';
 	import { DEFAULT_THEME, THEMES, THEME_BLURBS, themeStore, type Theme } from '$lib/theme.svelte';
@@ -905,6 +906,7 @@
 
 	<footer class="border-t border-base-300/60 py-3 text-center text-xs text-base-content/40">
 		local-only · JSON-backed · click an album to see details
+		<VersionLabel build={data.build} class="mt-1 block text-[0.7rem] text-base-content/30" />
 	</footer>
 </div>
 

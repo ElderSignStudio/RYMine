@@ -119,6 +119,9 @@ Expected response:
 {
 	"ok": true,
 	"name": "rymine",
+	"version": "0.0.1",
+	"commit": "d80e3a9",
+	"buildTime": "2026-08-03T22:34:10.112Z",
 	"mode": "readonly",
 	"hasData": false,
 	"albumCount": 0,
@@ -127,6 +130,12 @@ Expected response:
 ```
 
 `hasData: false` is normal on a fresh deploy — you haven't published yet.
+
+`commit` is the short git SHA Render built from (it reads Render's own
+`RENDER_GIT_COMMIT`). Compare it with `git rev-parse --short=7 HEAD` locally to
+confirm the deploy is current rather than a stale build — see
+[VERSIONING.md](VERSIONING.md). The same string appears in the app footer and
+at the bottom of Car Mode.
 
 Then open the root URL in a browser. You should be redirected to `/login`.
 Enter `RYMINE_VIEWER_PASSWORD`. You'll land on the (currently empty) album

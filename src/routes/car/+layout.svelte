@@ -1,7 +1,9 @@
 <script lang="ts">
 	import '../../app.css';
+	import VersionLabel from '$lib/components/VersionLabel.svelte';
+	import type { LayoutData } from './$types';
 
-	let { children }: { children: import('svelte').Snippet } = $props();
+	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
 </script>
 
 <!--
@@ -21,6 +23,14 @@
 	class="car-shell flex min-h-dvh flex-col bg-base-100 text-base-content [-webkit-tap-highlight-color:transparent]"
 >
 	{@render children()}
+
+	<!-- Deliberately tiny and very low contrast: Car Mode is a glanceable
+	     surface, so this sits at the very bottom purely so the build can be
+	     confirmed without leaving Car Mode. -->
+	<VersionLabel
+		build={data.build}
+		class="block px-4 pt-2 pb-3 text-center text-[0.65rem] text-base-content/25"
+	/>
 </div>
 
 <style>
