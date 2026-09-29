@@ -10,7 +10,7 @@
 // separate reactive store for these fields — the URL itself is the source of
 // truth.
 
-import { albumHasDescriptor, albumHasGenre } from './genres';
+import { albumHasDescriptor, albumHasGenre, isValidReleaseYear } from './genres';
 import type { WishlistAlbum } from './types';
 
 export type AlbumSort = 'artist' | 'year' | 'added' | 'rymRating' | 'myRating' | 'onDeckAt';
@@ -19,6 +19,10 @@ export type SortDir = 'asc' | 'desc';
 export interface AlbumFilters {
 	genre: string | null;
 	descriptor: string | null;
+	// Single selected release year, or null for "all years". Single-select
+	// (unlike genre/descriptor which are also single but conceptually
+	// multi-valued per album) — an album has exactly one release year.
+	year: number | null;
 	query: string;
 	onDeck: boolean;
 	sort: AlbumSort;
@@ -37,11 +41,23 @@ const ALL_SORTS: readonly AlbumSort[] = [
 export const DEFAULT_FILTERS: AlbumFilters = {
 	genre: null,
 	descriptor: null,
+	year: null,
 	query: '',
 	onDeck: false,
 	sort: 'artist',
 	dir: 'asc'
 };
+
+/**
+ * Read `?y=` into a year, rejecting anything that isn't a plausible release
+ * year. A hand-edited or stale URL like `?y=abc` or `?y=0` degrades to "no
+ * year filter" rather than producing a filter that matches nothing.
+ */
+function parseYearParam(raw: string | null): number | null {
+	if (!raw) return null;
+	const n = Number.parseInt(raw, 10);
+	return isValidReleaseYear(n) ? n : null;
+}
 
 export function parseFilters(sp: URLSearchParams): AlbumFilters {
 	const sort = sp.get('sort');
@@ -49,6 +65,7 @@ export function parseFilters(sp: URLSearchParams): AlbumFilters {
 	return {
 		genre: sp.get('g') || null,
 		descriptor: sp.get('d') || null,
+		year: parseYearParam(sp.get('y')),
 		query: sp.get('q') ?? '',
 		onDeck: sp.get('deck') === '1',
 		sort: (ALL_SORTS as readonly string[]).includes(sort ?? '')
@@ -66,6 +83,7 @@ export function buildFiltersURL(filters: AlbumFilters, base: string = '/'): stri
 	const sp = new URLSearchParams();
 	if (filters.genre) sp.set('g', filters.genre);
 	if (filters.descriptor) sp.set('d', filters.descriptor);
+	if (filters.year !== null) sp.set('y', String(filters.year));
 	if (filters.query) sp.set('q', filters.query);
 	if (filters.onDeck) sp.set('deck', '1');
 	if (filters.sort !== DEFAULT_FILTERS.sort) sp.set('sort', filters.sort);
@@ -79,7 +97,7 @@ export function withChanges(current: AlbumFilters, changes: Partial<AlbumFilters
 }
 
 export function hasAnyFilter(f: AlbumFilters): boolean {
-	return Boolean(f.genre || f.descriptor || f.query || f.onDeck);
+	return Boolean(f.genre || f.descriptor || f.query || f.onDeck) || f.year !== null;
 }
 
 export function matchesQuery(album: WishlistAlbum, q: string): boolean {
@@ -89,8 +107,8 @@ export function matchesQuery(album: WishlistAlbum, q: string): boolean {
 }
 
 /**
- * Apply any subset of the three filter axes. The omitted ones act as wildcards
- * so we can compute "albums matching descriptor+query" to drive the genre
+ * Apply any subset of the filter axes. The omitted ones act as wildcards so we
+ * can compute "albums matching descriptor+year+query" to drive the genre
  * sidebar's narrowing (and vice versa) without copy/pasting filter logic.
  *
  * Generic over the album row type so the page can pass a richer view (with
@@ -101,6 +119,7 @@ export function filterAlbums<T extends WishlistAlbum>(
 	opts: {
 		genre?: string | null;
 		descriptor?: string | null;
+		year?: number | null;
 		query?: string;
 		onDeck?: boolean;
 	}
@@ -109,6 +128,10 @@ export function filterAlbums<T extends WishlistAlbum>(
 	return albums.filter((a) => {
 		if (opts.genre && !albumHasGenre(a, opts.genre)) return false;
 		if (opts.descriptor && !albumHasDescriptor(a, opts.descriptor)) return false;
+		// Albums with a missing or unusable year stay visible while no year is
+		// selected, and drop out as soon as one is — they can't be claimed to
+		// belong to any particular year.
+		if (opts.year != null && a.year !== opts.year) return false;
 		if (query && !matchesQuery(a, query)) return false;
 		if (opts.onDeck && !a.onDeck) return false;
 		return true;
