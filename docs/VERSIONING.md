@@ -45,13 +45,14 @@ constant.
 
 1. `RYMINE_BUILD_COMMIT` — explicit override, works on any host
 2. `RENDER_GIT_COMMIT` — set automatically by Render on every deploy
-3. `git rev-parse HEAD` — local dev convenience
-4. `local` — if git isn't available (never fails the build)
+3. `CF_PAGES_COMMIT_SHA` — set automatically by Cloudflare Pages
+4. `git rev-parse HEAD` — local dev convenience
+5. `local` — if git isn't available (never fails the build)
 
-Steps 1–3 run **at build time** in `vite.config.ts`, so there are no
+Steps 1–4 run **at build time** in `vite.config.ts`, so there are no
 subprocess or filesystem calls once the server is up. `src/lib/server/buildInfo.ts`
-re-reads `RYMINE_BUILD_COMMIT` / `RENDER_GIT_COMMIT` at boot and prefers them
-if set, which covers redeploying an existing build.
+re-reads the three environment variables at boot and prefers them if set,
+which covers redeploying an existing build.
 
 SHAs are shortened to 7 characters for display. Sentinels like `local` pass
 through unshortened.

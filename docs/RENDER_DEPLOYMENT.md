@@ -30,13 +30,24 @@ openssl rand -base64 32
 
 Create a new **Web Service** on Render and point it at your repo.
 
-| Field             | Value                                                                         |
-| ----------------- | ----------------------------------------------------------------------------- |
-| Runtime           | Node                                                                          |
-| Build command     | `npm ci && npm run build`                                                     |
-| Start command     | `npm start`                                                                   |
-| Health check path | `/api/health`                                                                 |
-| Node version      | 20.x or newer (set via `engines` in package.json, or Render's "Node Version") |
+| Field             | Value                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| Runtime           | Node                                                                                 |
+| Build command     | `npm ci && npm run build`                                                            |
+| Start command     | `npm start`                                                                          |
+| Health check path | `/api/health`                                                                        |
+| Node version      | 20.x or newer (set via Render's "Node Version" — the project has no `engines` field) |
+
+> **Do not set `ADAPTER` on Render.** The build selects `adapter-node` whenever
+> `ADAPTER` is unset, which is what Render needs. `ADAPTER=cloudflare` belongs
+> only to the Cloudflare Pages project — see
+> [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md).
+
+> **On `npm ci`:** `package-lock.json` was incomplete for a long time (missing
+> optional `@emnapi/*` entries) and `npm ci` failed under npm 10.x — which is
+> why the build may have been switched to `npm install`. The lockfile is now
+> repaired and verified against npm 10.9.2 and 11.6.2 on both arm64 darwin and
+> linux/x64, so `npm ci` is correct again and is what this table specifies.
 
 ### Environment variables
 
