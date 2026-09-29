@@ -12,10 +12,27 @@
 // Buffer. A compatibility_date on or after 2025-04-01 additionally makes the
 // Workers runtime populate `process.env` from the configured environment
 // variables, which is how appMode.ts reads RYMINE_MODE and friends.
+//
+// `vars` are the RUNTIME variables handed to the Worker. They must live here
+// rather than in the Pages dashboard: once a project has a Wrangler config,
+// that file supersedes dashboard-set variables and bindings for Functions.
+// The first deployment set them in the dashboard only and the Worker received
+// none of them — it fell back to RYMINE_MODE=local and served mock data.
+//
+// BUILD-time variables are a separate channel and stay in the dashboard:
+//   ADAPTER=cloudflare   (selects this adapter in svelte.config.js)
+//   NODE_VERSION=22
+// Putting those here would do nothing — `vars` reach the Worker, not the build.
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "rymine",
 	"pages_build_output_dir": ".svelte-kit/cloudflare",
 	"compatibility_date": "2025-09-23",
-	"compatibility_flags": ["nodejs_compat"]
+	"compatibility_flags": ["nodejs_compat"],
+	"vars": {
+		"RYMINE_MODE": "readonly",
+		"RYMINE_PUBLIC_VIEWER": "1",
+		"RYMINE_REMOTE_DATA_URL": "https://raw.githubusercontent.com/ElderSignStudio/RYMineData/main/data/wishlist.json",
+		"RYMINE_REMOTE_DATA_CACHE_SECONDS": "300"
+	}
 }
