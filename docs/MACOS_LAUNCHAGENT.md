@@ -103,6 +103,15 @@ npm run build         # regenerate build/
 npm run svc:restart   # pick up the fresh bundle
 ```
 
+> ⚠️ **The restart is mandatory, not just for picking up changes.** Parts of
+> the server are now loaded through dynamic imports (so the hosted read-only
+> build never touches `node:fs`), and those chunks have content-hashed
+> filenames. Rebuilding replaces them underneath a running process, which then
+> fails to import them on the next request and returns
+> `{"message":"Internal Error"}` on every route. Always rebuild and restart
+> together; if the app starts erroring right after a build, this is why, and
+> `npm run svc:restart` fixes it.
+
 `.env` changes are loaded by the wrapper at startup, so any time you
 update env values:
 

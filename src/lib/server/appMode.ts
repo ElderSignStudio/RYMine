@@ -29,11 +29,36 @@ export const APP_MODE: AppMode = parseMode(process.env.RYMINE_MODE);
 export const IS_LOCAL = APP_MODE === 'local';
 export const IS_READONLY = APP_MODE === 'readonly';
 
+// ── Public viewer ───────────────────────────────────────────────────────────
+// `RYMINE_PUBLIC_VIEWER=1` drops the login gate on a readonly instance, for a
+// host that is meant to be world-readable (the Cloudflare Pages deployment).
+//
+// It changes exactly ONE thing: whether a visitor needs a password to read.
+// Every write protection is untouched and still applies — the route blocklist
+// and non-GET/HEAD block in hooks.server.ts, assertWritableMode() at each
+// write entry point, and CAN_SEND_PUBLISH (false in readonly by construction,
+// so the publish path and its UI don't exist). "Public" means public READ.
+//
+// Precedence: if a password is ALSO configured, public viewer wins. Setting
+// the flag is a deliberate act, and honouring it beats leaving a host locked
+// because a stale password variable was never cleaned up.
+//
+// Only meaningful in readonly mode — local mode has no gate to begin with.
+function parseFlag(raw: string | undefined): boolean {
+	const v = (raw ?? '').trim().toLowerCase();
+	return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+export const IS_PUBLIC_VIEWER = IS_READONLY && parseFlag(process.env.RYMINE_PUBLIC_VIEWER);
+
 const VIEWER_PASSWORD = process.env.RYMINE_VIEWER_PASSWORD ?? '';
 
-if (IS_READONLY && VIEWER_PASSWORD.length === 0) {
+// A readonly host with neither a password nor an explicit public opt-in is
+// almost certainly a misconfiguration, so refuse to boot rather than expose
+// it by accident. Opting in publicly is fine; doing so by omission is not.
+if (IS_READONLY && !IS_PUBLIC_VIEWER && VIEWER_PASSWORD.length === 0) {
 	throw new Error(
-		"RYMINE_MODE=readonly requires RYMINE_VIEWER_PASSWORD to be set. Either switch to RYMINE_MODE=local or provide a password — refusing to boot without one so the app isn't accidentally exposed."
+		"RYMINE_MODE=readonly requires either RYMINE_VIEWER_PASSWORD (password-gated, e.g. Render) or RYMINE_PUBLIC_VIEWER=1 (deliberately public, e.g. Cloudflare). Refusing to boot without one so the app isn't accidentally exposed."
 	);
 }
 
@@ -129,6 +154,7 @@ export const REMOTE_DATA_CACHE_SECONDS = (() => {
  */
 export async function verifyPassword(submitted: string): Promise<boolean> {
 	if (!IS_READONLY) return true; // no password gate in local mode
+	if (IS_PUBLIC_VIEWER) return false; // no gate to pass — nothing to verify
 	if (typeof submitted !== 'string' || submitted.length === 0) return false;
 	const { createHash, timingSafeEqual } = await import('node:crypto');
 	const a = createHash('sha256').update(submitted).digest();

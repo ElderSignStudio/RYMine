@@ -15,12 +15,18 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
  * Commit for this build, in priority order:
  *   1. RYMINE_BUILD_COMMIT — explicit override, works on any host.
  *   2. RENDER_GIT_COMMIT   — set automatically by Render for every deploy.
- *   3. `git rev-parse`     — local dev convenience. Guarded: this is a build-
+ *   3. CF_PAGES_COMMIT_SHA — set automatically by Cloudflare Pages.
+ *   4. `git rev-parse`     — local dev convenience. Guarded: this is a build-
  *      time call, and any failure (no git, tarball checkout, detached state)
  *      quietly degrades to 'local' rather than breaking the build.
  */
 function resolveBuildCommit(): string {
-	const fromEnv = (process.env.RYMINE_BUILD_COMMIT || process.env.RENDER_GIT_COMMIT || '').trim();
+	const fromEnv = (
+		process.env.RYMINE_BUILD_COMMIT ||
+		process.env.RENDER_GIT_COMMIT ||
+		process.env.CF_PAGES_COMMIT_SHA ||
+		''
+	).trim();
 	if (fromEnv) return fromEnv;
 
 	try {

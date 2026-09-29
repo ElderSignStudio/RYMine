@@ -1,4 +1,17 @@
-import adapter from '@sveltejs/adapter-node';
+import adapterNode from '@sveltejs/adapter-node';
+import adapterCloudflare from '@sveltejs/adapter-cloudflare';
+
+// Two deployment targets share this config:
+//
+//   (default)            → adapter-node. Local dev, the macOS LaunchAgent,
+//                          and Render. Produces ./build, run with `node build`.
+//   ADAPTER=cloudflare   → adapter-cloudflare. The hosted read-only viewer on
+//                          Cloudflare Pages. Produces .svelte-kit/cloudflare.
+//
+// The default is deliberately adapter-node so Render needs no configuration
+// change of any kind: absent the variable, nothing about its build differs.
+
+const useCloudflare = process.env.ADAPTER === 'cloudflare';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -7,9 +20,7 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		// adapter-node produces a self-contained Node server in ./build, runnable
-		// with `node build` (or `npm start`). This is what the local launcher uses.
-		adapter: adapter()
+		adapter: useCloudflare ? adapterCloudflare() : adapterNode()
 	}
 };
 

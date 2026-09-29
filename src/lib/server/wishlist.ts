@@ -3,7 +3,12 @@ import { albumIdFromUrl } from '$lib/albumId';
 import { mockAlbums, mockLastScrapedAt } from '$lib/mockData';
 import { IS_READONLY, REMOTE_DATA_URL } from './appMode';
 import { fetchRemoteWishlist } from './remoteData';
-import { readWishlistFile } from './wishlistStore';
+
+// `./wishlistStore` is imported dynamically further down rather than at the
+// top of the module. It reaches for `node:fs` / `node:path` at import time,
+// and the hosted readonly path (remote GitHub URL) never needs it — so on
+// Cloudflare, where there is no filesystem, the module is never evaluated.
+// Local mode and the legacy file-backed readonly path load it on demand.
 
 // Album shape used by the UI: the stored album plus a stable local ID so
 // routes like /album/[id] don't need to deal with URL-encoded RYM paths.
@@ -57,6 +62,7 @@ export async function loadWishlistData(): Promise<WishlistData> {
 
 	// Default path: filesystem. Used by local writable mode and by readonly
 	// instances that haven't yet been given a remote URL (legacy setup).
+	const { readWishlistFile } = await import('./wishlistStore');
 	const file = await readWishlistFile();
 	if (file && file.albums.length > 0) {
 		return {

@@ -10,15 +10,18 @@
 // the `secure` option (defaults to true).
 
 import type { Cookies } from '@sveltejs/kit';
-import { expectedSessionToken, IS_READONLY } from './appMode';
+import { expectedSessionToken, IS_PUBLIC_VIEWER, IS_READONLY } from './appMode';
 
 export const AUTH_COOKIE = 'rymine_session';
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export async function isAuthenticated(cookies: Cookies): Promise<boolean> {
 	// In local mode the gate is conceptually "open", but downstream code that
-	// reads `locals.isAuthenticated` benefits from a stable true value.
-	if (!IS_READONLY) return true;
+	// reads `locals.isAuthenticated` benefits from a stable true value. Public
+	// viewer mode is the same situation: there is no gate, so everyone is
+	// "authenticated" as far as read access is concerned. Write protection
+	// does not consult this flag.
+	if (!IS_READONLY || IS_PUBLIC_VIEWER) return true;
 	const got = cookies.get(AUTH_COOKIE);
 	if (!got) return false;
 	const expected = await expectedSessionToken();
