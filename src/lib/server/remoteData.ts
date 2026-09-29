@@ -13,7 +13,7 @@
 // remote URL, the cache is a latency / rate-limit optimisation.
 
 import { REMOTE_DATA_CACHE_SECONDS, REMOTE_DATA_URL } from './appMode';
-import { validatePublishPayload } from './publish';
+import { validatePublishPayload } from './validateWishlist';
 import type { WishlistFile } from './wishlistStore';
 
 type CacheEntry = {
