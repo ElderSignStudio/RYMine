@@ -59,8 +59,12 @@ nothing can be modified.
 
 - reads its wishlist from the **public RYMineData GitHub repo** over HTTPS
 - no filesystem writes, no bookmarklets, no publishing
-- **Render** currently hosts production (adapter-node, viewer password)
-- a **Cloudflare Pages** migration is in progress (adapter-cloudflare, public)
+- **Cloudflare Pages** hosts the public viewer (adapter-cloudflare, no login,
+  runtime config in `wrangler.jsonc`) — see `docs/CLOUDFLARE_DEPLOYMENT.md`
+- **Render** still runs in parallel (adapter-node, viewer password) — see
+  `docs/RENDER_DEPLOYMENT.md`
+
+Both read the same published data. Neither can write.
 
 ## Data flow
 
