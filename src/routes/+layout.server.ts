@@ -7,11 +7,15 @@
 // actually serving the page, so a cached client bundle can't show a stale
 // version number.
 
+import { IS_PUBLIC_VIEWER } from '$lib/server/appMode';
 import { BUILD_INFO } from '$lib/server/buildInfo';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = ({ locals }) => ({
 	appMode: locals.appMode,
 	isAuthenticated: locals.isAuthenticated,
+	// Drives chrome only (the Logout button is meaningless with no session).
+	// Not a security boundary — the server never trusts this.
+	isPublicViewer: IS_PUBLIC_VIEWER,
 	build: BUILD_INFO
 });

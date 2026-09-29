@@ -10,23 +10,18 @@
 
 ## Project Overview
 
-RYMine is a personal local-only utility app for organizing and exploring my Rate Your Music wishlist by genre.
+RYMine is a personal utility for organizing and exploring my Rate Your Music
+wishlist by genre.
 
 The core UX goal is:
 
 > “I wake up wanting a certain kind of music, and immediately see which albums in my wishlist match that mood or genre.”
 
-Examples:
+Examples: Ambient, Progressive Folk, Zeuhl, Berlin School, Viking Metal,
+Cosmic Americana, Progressive Electronic.
 
-- Ambient
-- Progressive Folk
-- Zeuhl
-- Berlin School
-- Viking Metal
-- Cosmic Americana
-- Progressive Electronic
-
-This is intended to feel like a cozy personal music library rather than a corporate productivity tool.
+This should feel like a cozy personal music library, not a corporate
+productivity tool.
 
 The app is NOT intended to:
 
@@ -36,76 +31,94 @@ The app is NOT intended to:
 - support multiple users
 - become a social platform
 
-This is a personal archival/discovery utility only.
+It is a personal archival/discovery utility. The hosted copy is public to
+read, but it is still a library of one.
 
 ---
 
-# Current Scope
+# Architecture
 
-Initial version:
+One codebase, two runtime personalities, selected at boot by `RYMINE_MODE`
+(see `src/lib/server/appMode.ts`).
 
-- scrape my own RYM wishlist
-- collect album metadata and genres
-- browse genres with album counts
-- click genre -> show matching albums
-- click album -> open RYM page
-- local JSON storage only
+## Local — `RYMINE_MODE=local`
 
-Future possible features:
+The full writable application. Runs on my Mac via a LaunchAgent
+(`npm run svc:*`, see `docs/MACOS_LAUNCHAGENT.md`) or `npm run dev`.
 
-- descriptors/tags/moods
-- ratings
-- year filtering
-- advanced search
-- sorting
-- descriptor combinations
-- random discovery
-- “mood browsing”
+- scraping (Playwright), wishlist import, album enrichment (bookmarklets)
+- On Deck editing, full-sync sessions
+- publishing to the RYMineData repo
+- holds the GitHub write token
+- reads and writes `data/wishlist.json` on the local filesystem
 
-Do NOT implement future features unless asked.
+## Hosted — `RYMINE_MODE=readonly`
 
-Keep the initial version focused and simple.
+A strictly read-only viewer. Browser Mode, Car Mode, and PWA install all work;
+nothing can be modified.
+
+- reads its wishlist from the **public RYMineData GitHub repo** over HTTPS
+- no filesystem writes, no bookmarklets, no publishing
+- **Render** currently hosts production (adapter-node, viewer password)
+- a **Cloudflare Pages** migration is in progress (adapter-cloudflare, public)
+
+## Data flow
+
+```
+local RYMine  ──publish──▶  RYMineData (public GitHub repo)
+                                  │
+                                  ▼  raw.githubusercontent.com
+                            hosted RYMine (read-only)
+```
+
+Local is the only writer. Hosted is a reader, always.
+
+---
+
+# Deployment branches
+
+| Branch                 | Purpose                                        |
+| ---------------------- | ---------------------------------------------- |
+| `main`                 | canonical latest working code                  |
+| `production`           | deployment branch watched by Render            |
+| `cloudflare-migration` | temporary Cloudflare migration development     |
+| `cloudflare`           | future deployment branch watched by Cloudflare |
+
+Feature work happens on feature branches and lands on `main`. Never commit
+directly to a deployment branch; merge into it deliberately.
+
+---
+
+# Security rules (IMPORTANT)
+
+- Hosted deployments are **read-only**. This is enforced in layers: the route
+  blocklist and non-GET/HEAD block in `src/hooks.server.ts`, plus
+  `assertWritableMode()` at every write entry point.
+- The **GitHub write token must NEVER be present in a hosted deployment.**
+  Not on Render, not on Cloudflare, not in any build output.
+- Only local RYMine may publish to or otherwise modify RYMineData.
+- `CAN_SEND_PUBLISH` is `IS_LOCAL && backend !== 'none'`, so the publish path
+  and its UI simply do not exist in readonly mode.
+- Public read access (`RYMINE_PUBLIC_VIEWER=1`) removes the login gate only.
+  It must never relax a write protection.
+
+See `docs/CLOUDFLARE_DEPLOYMENT.md` and `docs/RENDER_DEPLOYMENT.md` for the
+per-host environment variables, and `.env.example` for the full list.
 
 ---
 
 # Tech Stack
 
-Use:
-
-- SvelteKit (latest)
+- SvelteKit (latest) + Svelte 5 runes
 - TypeScript
-- Tailwind CSS
-- DaisyUI
-- Playwright
+- Tailwind CSS + DaisyUI
+- Playwright (scraper only)
 
-Storage:
+Storage: local JSON files. The hosted copy reads a published JSON file from
+GitHub. No database.
 
-- local JSON files only
-
-No database for now.
-
----
-
-# Important Architecture Rules
-
-This app is LOCAL ONLY.
-
-Do NOT:
-
-- deploy it
-- add authentication
-- add cloud infrastructure
-- add a backend API server
-- add user accounts
-- add Supabase/Firebase/etc
-- add Docker
-- add analytics
-
-Keep everything local and lightweight.
-
-The app should run comfortably on macOS through VSCode during development.
-
-Future desktop packaging (possibly Tauri) may happen later, but do NOT implement this unless asked.
+Adapters: `adapter-node` by default (local + Render), `adapter-cloudflare`
+when `ADAPTER=cloudflare` is set at build time.
 
 ---
 
@@ -124,88 +137,42 @@ Visual direction:
 
 Use a pleasant DaisyUI theme.
 
-Animations and visual niceness are welcome IF:
+Animations and visual niceness are welcome IF simple, stable, easy to
+maintain, and low-drama.
 
-- simple
-- stable
-- easy to maintain
-- low-drama
+Avoid over-engineering, complex animation systems, excessive polish work, and
+fragile UI abstractions.
 
-Avoid:
+Prefer subtle hover effects, smooth transitions, pleasant spacing, readable
+typography, and lightweight enhancements.
 
-- over-engineering
-- complex animation systems
-- excessive visual polish work
-- fragile UI abstractions
+## Surfaces
 
-Prefer:
-
-- subtle hover effects
-- smooth transitions
-- pleasant spacing
-- readable typography
-- lightweight UI enhancements
-
----
-
-# Initial UI Requirements
-
-Main page layout:
-
-Left sidebar:
-
-- genre list
-- alphabetical order
-- album counts beside each genre
-- genre search/filter input
-
-Right panel:
-
-- albums matching selected genre
-- format:
-  Artist - Album Title (Year)
-
-Album rows:
-
-- clickable
-- open RYM page in a new tab
-
-Top area:
-
-- “Scrape Wishlist” button
-- last scraped timestamp
-
-Use mock data initially before implementing scraping.
+- **Browser Mode** — sidebar of Genres / Descriptors / Release Year with
+  album counts and bidirectional faceting; album list with search, sorting,
+  On Deck, and album detail pages.
+- **Car Mode** (`/car`) — deliberately calm, large-touch-target UI for use
+  while driving. Keep it low-density. Changes to the full app should not leak
+  into it.
 
 ---
 
 # Data Model
 
-Use this shape:
+`src/lib/types.ts` is the source of truth for `WishlistAlbum`. It carries the
+scraped basics (artist, title, year, url, genres) plus enrichment fields
+(ratings, descriptors, primary/secondary genres, streaming links, covers) and
+the local-only On Deck marker.
 
-```ts
-export type WishlistAlbum = {
-	artist: string;
-	title: string;
-	year?: number;
-	url: string;
-	genres: string[];
-
-	// future fields
-	rating?: number;
-	descriptors?: string[];
-
-	dateAdded?: string;
-};
-```
-
-Structure code cleanly so descriptors and ratings can be added later without major rewrites.
+Keep it additive: new optional fields should flow through import, enrichment,
+sync, and publish without those pipelines needing to know about them.
 
 ---
 
 # Scraping Rules (VERY IMPORTANT)
 
-The scraper must scrape ONLY my own Rate Your Music wishlist.
+The scraper must scrape ONLY my own Rate Your Music wishlist, and only from
+local mode.
 
 The scraper must:
 
@@ -230,19 +197,7 @@ The scraper must NOT:
 - attempt to bypass anti-bot protections
 - hammer the site
 
-The scraper should behave as gently and human-like as reasonably possible.
-
----
-
-# Scraper UX
-
-Eventually, the scraper should be triggerable from inside the app UI through a button.
-
-However:
-
-- keep scraping logic isolated from UI
-- scraper should also be runnable independently if needed
-- prioritize stability and simplicity over fancy integrations
+Behave as gently and human-like as reasonably possible.
 
 ---
 
@@ -265,26 +220,29 @@ Avoid:
 
 Build one feature at a time.
 
-After significant changes:
+## Before considering a change done
 
-- run `npm run check`
-- run `npm run lint`
+```sh
+npm run verify   # check + lint + focused checks + build
+```
 
-Explain briefly:
+Individually: `npm run check`, `npm run lint`, `npm run build`, and the
+focused check scripts (`npm run check:filters`, `npm run check:rymlink`,
+`npm run check:modes`).
 
-- what changed
-- why it changed
-- any tradeoffs made
+When touching anything hosted, also build the Cloudflare target:
+
+```sh
+ADAPTER=cloudflare npm run build
+```
+
+Then explain briefly: what changed, why, and any tradeoffs.
 
 ---
 
 # Important Notes
 
-This project is intended to be:
-
-- fun
-- lightweight
-- useful daily
-- easy to evolve gradually
+This project is intended to be fun, lightweight, useful daily, and easy to
+evolve gradually.
 
 Do not turn it into an enterprise application.

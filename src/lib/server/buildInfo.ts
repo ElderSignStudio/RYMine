@@ -21,6 +21,7 @@ import {
 const runtimeCommit = (
 	process.env.RYMINE_BUILD_COMMIT ||
 	process.env.RENDER_GIT_COMMIT ||
+	process.env.CF_PAGES_COMMIT_SHA ||
 	''
 ).trim();
 

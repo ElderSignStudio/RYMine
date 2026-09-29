@@ -64,6 +64,8 @@
 	// hide write controls and show a small badge + logout. The server still
 	// enforces the same rules — these flags only drive the chrome.
 	const isReadonly = $derived(data.appMode === 'readonly');
+	// Public readonly hosts have no session, so there is nothing to log out of.
+	const isPublicViewer = $derived(data.isPublicViewer === true);
 
 	// Each sidebar list narrows to "what could you add given the OTHER active
 	// filters?" — picking a genre narrows the descriptor list to descriptors on
@@ -476,8 +478,11 @@
 							{/if}
 						</button>
 					</form>
-				{:else}
-					<!-- Readonly mode: replace the write toolbar with a logout link. -->
+				{:else if !isPublicViewer}
+					<!-- Password-gated readonly: replace the write toolbar with a
+					     logout link. A public readonly host has no session, so the
+					     button is omitted entirely rather than sitting there doing
+					     nothing. -->
 					<form method="POST" action="/logout" class="contents">
 						<button
 							type="submit"

@@ -1,12 +1,14 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { IS_READONLY, verifyPassword } from '$lib/server/appMode';
+import { IS_PUBLIC_VIEWER, IS_READONLY, verifyPassword } from '$lib/server/appMode';
 import { setSession } from '$lib/server/auth';
 import type { Actions, PageServerLoad } from './$types';
 
-// The login page only makes sense in readonly mode. In local mode there's no
-// password gate, so bounce visitors straight back to the app.
+// The login page only makes sense on a password-gated readonly instance. In
+// local mode and in public viewer mode there's no gate, so bounce visitors
+// straight back to the app. (In public mode `locals.isAuthenticated` is
+// already true, so this is belt and braces.)
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!IS_READONLY || locals.isAuthenticated) {
+	if (!IS_READONLY || IS_PUBLIC_VIEWER || locals.isAuthenticated) {
 		throw redirect(303, '/');
 	}
 	return {};
@@ -14,7 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	default: async ({ request, cookies, url }) => {
-		if (!IS_READONLY) throw redirect(303, '/');
+		if (!IS_READONLY || IS_PUBLIC_VIEWER) throw redirect(303, '/');
 
 		const form = await request.formData();
 		const password = String(form.get('password') ?? '');
