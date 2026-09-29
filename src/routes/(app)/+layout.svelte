@@ -3,8 +3,14 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import VersionLabel from '$lib/components/VersionLabel.svelte';
-	import { buildFiltersURL, filterAlbums, parseFilters, withChanges } from '$lib/filters';
-	import { descriptorCounts, formatLastScraped, genreCounts } from '$lib/genres';
+	import {
+		buildFiltersURL,
+		filterAlbums,
+		hasAnyFilter,
+		parseFilters,
+		withChanges
+	} from '$lib/filters';
+	import { descriptorCounts, formatLastScraped, genreCounts, yearCounts } from '$lib/genres';
 	import { DEFAULT_THEME, THEMES, THEME_BLURBS, themeStore, type Theme } from '$lib/theme.svelte';
 	import { uiState } from '$lib/uiState.svelte';
 	import type { LayoutData } from './$types';
@@ -29,6 +35,7 @@
 	// On lg+ these flags don't affect layout — CSS forces the panels open.
 	let genresOpenMobile = $state<boolean>(Boolean(page.url.searchParams.get('g')));
 	let descriptorsOpenMobile = $state<boolean>(Boolean(page.url.searchParams.get('d')));
+	let yearsOpenMobile = $state<boolean>(Boolean(page.url.searchParams.get('y')));
 	$effect(() => {
 		// Auto-expand the section when its filter becomes active (e.g. user
 		// tapped a genre badge from an album row). We only open — never auto-
@@ -37,6 +44,9 @@
 	});
 	$effect(() => {
 		if (filters.descriptor) descriptorsOpenMobile = true;
+	});
+	$effect(() => {
+		if (filters.year !== null) yearsOpenMobile = true;
 	});
 
 	// URL is the source of truth for selected genre / descriptor / search /
@@ -54,20 +64,43 @@
 	// hide write controls and show a small badge + logout. The server still
 	// enforces the same rules — these flags only drive the chrome.
 	const isReadonly = $derived(data.appMode === 'readonly');
+	// Public readonly hosts have no session, so there is nothing to log out of.
+	const isPublicViewer = $derived(data.isPublicViewer === true);
 
 	// Each sidebar list narrows to "what could you add given the OTHER active
 	// filters?" — picking a genre narrows the descriptor list to descriptors on
 	// matching albums (and vice versa). Search is included too so the sidebar
 	// reflects whatever's currently visible in the album list.
 	const genresSourceAlbums = $derived(
-		filterAlbums(data.albums, { descriptor: filters.descriptor, query: filters.query })
+		filterAlbums(data.albums, {
+			descriptor: filters.descriptor,
+			year: filters.year,
+			query: filters.query
+		})
 	);
 	const descriptorsSourceAlbums = $derived(
-		filterAlbums(data.albums, { genre: filters.genre, query: filters.query })
+		filterAlbums(data.albums, { genre: filters.genre, year: filters.year, query: filters.query })
+	);
+	const yearsSourceAlbums = $derived(
+		filterAlbums(data.albums, {
+			genre: filters.genre,
+			descriptor: filters.descriptor,
+			query: filters.query
+		})
 	);
 
 	const allGenres = $derived(genreCounts(genresSourceAlbums));
 	const allDescriptors = $derived(descriptorCounts(descriptorsSourceAlbums));
+	const allYears = $derived(yearCounts(yearsSourceAlbums));
+
+	// Always newest → oldest; unlike genres/descriptors there's no alternative
+	// ordering worth offering, so this list has no sort/filter sub-controls.
+	const visibleYears = $derived.by(() => {
+		const list = [...allYears];
+		const sel = filters.year;
+		if (sel !== null && !list.some((y) => y.year === sel)) list.push({ year: sel, count: 0 });
+		return list.sort((a, b) => b.year - a.year);
+	});
 
 	const visibleGenres = $derived.by(() => {
 		const list = [...allGenres];
@@ -120,10 +153,16 @@
 		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
+	async function selectYear(year: number) {
+		const next = withChanges(filters, { year: filters.year === year ? null : year });
+		await goto(buildFiltersURL(next), { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
 	async function clearAllFilters() {
 		const next = withChanges(filters, {
 			genre: null,
 			descriptor: null,
+			year: null,
 			query: '',
 			onDeck: false
 		});
@@ -439,8 +478,11 @@
 							{/if}
 						</button>
 					</form>
-				{:else}
-					<!-- Readonly mode: replace the write toolbar with a logout link. -->
+				{:else if !isPublicViewer}
+					<!-- Password-gated readonly: replace the write toolbar with a
+					     logout link. A public readonly host has no session, so the
+					     button is omitted entirely rather than sitting there doing
+					     nothing. -->
 					<form method="POST" action="/logout" class="contents">
 						<button
 							type="submit"
@@ -457,7 +499,7 @@
 		<!-- Mobile-only active-filter strip. Rides along with the sticky header
 		     so it stays visible while the album list scrolls underneath.
 		     Suppressed on detail pages where it's not relevant. -->
-		{#if (filters.genre || filters.descriptor || filters.query || filters.onDeck) && !isDetailPage}
+		{#if hasAnyFilter(filters) && !isDetailPage}
 			<div class="border-t border-base-300/70 bg-base-200/85 px-3 py-1.5 lg:hidden">
 				<div class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1.5 text-xs">
 					<span class="text-base-content/50">filters:</span>
@@ -491,6 +533,17 @@
 							title="Remove descriptor filter"
 						>
 							{filters.descriptor}
+							<span aria-hidden="true">✕</span>
+						</button>
+					{/if}
+					{#if filters.year !== null}
+						<button
+							type="button"
+							class="badge gap-1 badge-sm badge-accent"
+							onclick={() => selectYear(filters.year as number)}
+							title="Remove release-year filter"
+						>
+							{filters.year}
 							<span aria-hidden="true">✕</span>
 						</button>
 					{/if}
@@ -679,12 +732,12 @@
 					</span>
 					<span
 						class="shrink-0 text-xs text-base-content/50"
-						title={filters.descriptor || filters.query
-							? 'genres available within current descriptor + search'
+						title={filters.descriptor || filters.query || filters.year !== null
+							? 'genres available within current descriptor + year + search'
 							: 'across all albums'}
 					>
 						{allGenres.length}
-						{filters.descriptor || filters.query ? 'here' : 'total'}
+						{filters.descriptor || filters.query || filters.year !== null ? 'here' : 'total'}
 					</span>
 				</button>
 
@@ -792,12 +845,12 @@
 					</span>
 					<span
 						class="shrink-0 text-xs text-base-content/50"
-						title={filters.genre || filters.query
-							? 'descriptors available within current genre + search'
+						title={filters.genre || filters.query || filters.year !== null
+							? 'descriptors available within current genre + year + search'
 							: 'across all albums'}
 					>
 						{allDescriptors.length}
-						{filters.genre || filters.query ? 'here' : 'total'}
+						{filters.genre || filters.query || filters.year !== null ? 'here' : 'total'}
 					</span>
 				</button>
 
@@ -884,13 +937,85 @@
 				</div>
 			</div>
 
-			{#if filters.genre || filters.descriptor || filters.query || filters.onDeck}
+			<!-- Release Year section. Single-select: picking a year replaces any
+			     previously selected one, picking the same year again clears it.
+			     Deliberately lighter than Genres/Descriptors — years have one
+			     obvious order (newest first) and are short enough to scan, so
+			     there's no sort toggle and no text filter to maintain. -->
+			<div class="flex min-h-0 flex-col border-t border-base-300/70">
+				<button
+					type="button"
+					onclick={() => (yearsOpenMobile = !yearsOpenMobile)}
+					class="flex w-full items-center justify-between gap-2 border-b border-base-300/70 p-4 text-left transition-colors hover:bg-base-300/30 lg:cursor-default lg:hover:bg-transparent"
+					aria-expanded={yearsOpenMobile}
+					aria-controls="sidebar-years-body"
+				>
+					<span class="flex min-w-0 items-center gap-2">
+						<span class="text-xs text-base-content/40 lg:hidden" aria-hidden="true"
+							>{yearsOpenMobile ? '▾' : '▸'}</span
+						>
+						<h2 class="text-sm font-semibold tracking-wider text-base-content/70 uppercase">
+							Release Year
+						</h2>
+						{#if filters.year !== null && !yearsOpenMobile}
+							<span class="badge badge-sm badge-accent lg:hidden" title="active release year">
+								{filters.year}
+							</span>
+						{/if}
+					</span>
+					<span
+						class="shrink-0 text-xs text-base-content/50"
+						title={filters.genre || filters.descriptor || filters.query
+							? 'years available within current genre + descriptor + search'
+							: 'across all albums'}
+					>
+						{allYears.length}
+						{filters.genre || filters.descriptor || filters.query ? 'here' : 'total'}
+					</span>
+				</button>
+
+				<div
+					id="sidebar-years-body"
+					class="flex min-h-0 flex-col {yearsOpenMobile ? '' : 'hidden'} lg:flex"
+				>
+					<ul
+						class="scrollbar-soft max-h-[30vh] min-h-0 flex-1 overflow-y-auto p-2 lg:max-h-[22vh]"
+					>
+						{#each visibleYears as entry (entry.year)}
+							<li>
+								<button
+									type="button"
+									onclick={() => selectYear(entry.year)}
+									class="group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm tabular-nums transition-colors duration-150
+									hover:bg-base-300/60
+									{filters.year === entry.year ? 'bg-primary/15 text-primary-content/90 ring-1 ring-primary/30' : ''}"
+									aria-pressed={filters.year === entry.year}
+								>
+									<span class="font-medium">{entry.year}</span>
+									<span
+										class="badge badge-ghost badge-sm transition group-hover:badge-neutral"
+										aria-label="{entry.count} albums"
+									>
+										{entry.count}
+									</span>
+								</button>
+							</li>
+						{:else}
+							<li class="px-3 py-6 text-center text-sm text-base-content/50">
+								No release years match.
+							</li>
+						{/each}
+					</ul>
+				</div>
+			</div>
+
+			{#if hasAnyFilter(filters)}
 				<div class="border-t border-base-300/70 bg-base-200/40 px-3 py-2">
 					<button
 						type="button"
 						class="btn w-full btn-ghost btn-xs"
 						onclick={clearAllFilters}
-						title="Clear genre, descriptor, search, and On Deck filters"
+						title="Clear genre, descriptor, release year, search, and On Deck filters"
 					>
 						Clear filters
 					</button>

@@ -64,6 +64,7 @@
 		const base = filterAlbums(data.albums, {
 			genre: filters.genre,
 			descriptor: filters.descriptor,
+			year: filters.year,
 			query: filters.query,
 			onDeck: filters.onDeck
 		});
@@ -112,7 +113,7 @@
 
 	function clearAll() {
 		searchInput = '';
-		pushFilters({ genre: null, descriptor: null, query: '', onDeck: false });
+		pushFilters({ genre: null, descriptor: null, year: null, query: '', onDeck: false });
 	}
 
 	function toggleOnDeckFilter() {
@@ -151,8 +152,7 @@
 				<p class="text-xs text-base-content/60">
 					{visibleAlbums.length}
 					{visibleAlbums.length === 1 ? 'album' : 'albums'}
-					{#if filters.genre || filters.descriptor || filters.query || filters.onDeck}match current
-						filters{:else}in wishlist{/if}
+					{#if hasAnyFilter(filters)}match current filters{:else}in wishlist{/if}
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-1 text-xs">
@@ -221,7 +221,7 @@
 						type="button"
 						class="btn ml-2 btn-ghost btn-xs"
 						onclick={clearAll}
-						title="Clear genre, descriptor, search, and On Deck"
+						title="Clear genre, descriptor, release year, search, and On Deck"
 					>
 						Clear all
 					</button>
@@ -268,7 +268,7 @@
 			{/if}
 		</label>
 
-		{#if filters.genre || filters.descriptor || filters.onDeck}
+		{#if filters.genre || filters.descriptor || filters.onDeck || filters.year !== null}
 			<!-- Compact reminder of active filters. Hidden on mobile — the
 			     sticky chip strip in the header already covers it there. -->
 			<div class="hidden flex-wrap items-center gap-1.5 text-xs text-base-content/60 lg:flex">
@@ -303,6 +303,17 @@
 						title="Remove descriptor filter"
 					>
 						{filters.descriptor}
+						<span aria-hidden="true">✕</span>
+					</button>
+				{/if}
+				{#if filters.year !== null}
+					<button
+						type="button"
+						class="badge gap-1 badge-sm badge-accent"
+						onclick={() => pushFilters({ year: null })}
+						title="Remove release-year filter"
+					>
+						{filters.year}
 						<span aria-hidden="true">✕</span>
 					</button>
 				{/if}

@@ -12,7 +12,7 @@
 
 import { json } from '@sveltejs/kit';
 import { CAN_RECEIVE_PUBLISH, IS_READONLY, verifyPublishToken } from '$lib/server/appMode';
-import { validatePublishPayload } from '$lib/server/publish';
+import { validatePublishPayload } from '$lib/server/validateWishlist';
 import { writeWishlistFile } from '$lib/server/wishlistStore';
 import type { RequestHandler } from './$types';
 
@@ -22,17 +22,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ ok: false, error: 'Not found.' }, { status: 404 });
 	}
 
-	// Readonly but no token configured = the receiver was set up unsafely.
-	// Refuse rather than silently accepting any publish.
+	// Readonly with no publish token configured: the receiver is switched off.
+	// Report it as absent rather than merely misconfigured, so a deployment
+	// that deliberately has no write credentials (Cloudflare) presents no
+	// publish surface at all. Render is unaffected — it has the token set, so
+	// CAN_RECEIVE_PUBLISH is true and this branch never runs there.
 	if (!CAN_RECEIVE_PUBLISH) {
-		return json(
-			{
-				ok: false,
-				error:
-					'Publish endpoint not configured. Set RYMINE_PUBLISH_TOKEN on the hosted instance and restart.'
-			},
-			{ status: 503 }
-		);
+		return json({ ok: false, error: 'Not found.' }, { status: 404 });
 	}
 
 	const authHeader = request.headers.get('authorization') ?? '';
