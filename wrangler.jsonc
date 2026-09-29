@@ -1,0 +1,21 @@
+// Cloudflare Pages configuration for the hosted read-only RYMine.
+//
+// Only read by @sveltejs/adapter-cloudflare (i.e. only when the build runs
+// with ADAPTER=cloudflare). The default adapter-node build used by local dev
+// and Render never looks at this file.
+//
+// NO SECRETS BELONG HERE. This file is committed. The Cloudflare deployment
+// holds no write credentials at all — see docs/CLOUDFLARE_DEPLOYMENT.md.
+//
+// `nodejs_compat` is required because the readonly request path still uses
+// node:crypto (timingSafeEqual / createHmac in the session helpers) and
+// Buffer. A compatibility_date on or after 2025-04-01 additionally makes the
+// Workers runtime populate `process.env` from the configured environment
+// variables, which is how appMode.ts reads RYMINE_MODE and friends.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "rymine",
+	"pages_build_output_dir": ".svelte-kit/cloudflare",
+	"compatibility_date": "2025-09-23",
+	"compatibility_flags": ["nodejs_compat"]
+}
